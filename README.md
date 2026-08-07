@@ -122,9 +122,10 @@ Setup una tantum:
    connection string reale della SQL Database.
 4. Scarica il **Publish Profile** dal portale (Overview → "Download publish
    profile") e salvalo come secret GitHub `AZURE_WEBAPP_PUBLISH_PROFILE`.
-5. Aggiungi altri due secret GitHub: `AZURE_WEBAPP_NAME` (nome della Web App)
-   e `DATABASE_URL` (usata in CI solo per costruire l'adapter Prisma a build
-   time — nessuna query gira in fase di build, vedi nota sotto).
+5. Aggiungi il secret GitHub `AZURE_WEBAPP_NAME` (nome della Web App). Non
+   serve un secret `DATABASE_URL`: `lib/prisma.ts` costruisce l'adapter in
+   modo lazy, solo al primo utilizzo reale, mai al build — la connection
+   string reale vive solo nell'Application Setting del punto 3.
 6. Push su `main` → la action `.github/workflows/azure-deploy.yml` builda e
    pubblica automaticamente.
 

@@ -1,5 +1,10 @@
 import { createServerCaller } from "@/lib/trpc/server-caller";
 
+// The current period depends on "now" (PRD section 3/11) — must be computed
+// per-request, not baked in at build time, or it would stay frozen at
+// whatever date the app happened to be built on.
+export const dynamic = "force-dynamic";
+
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
 
 export default async function Home() {

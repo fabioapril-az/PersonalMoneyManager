@@ -28,12 +28,12 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # Only needed so lib/prisma.ts can construct its adapter during the
-          # build; no query runs at build time (dashboard pages are dynamic,
-          # not statically generated — see PRD section 11). Point it at the
-          # same Azure SQL Database connection string used in production.
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # No DATABASE_URL here on purpose: lib/prisma.ts constructs its
+        # adapter lazily on first query, never at module import time, so the
+        # build never needs real DB credentials (dashboard pages are also
+        # dynamic, not statically generated — see PRD section 11). The real
+        # connection string lives only in the Web App's Application
+        # Settings, set once in the Azure Portal (see README "Deploy").
 
       - name: Assemble standalone bundle
         # Next.js standalone output deliberately omits static assets and the
