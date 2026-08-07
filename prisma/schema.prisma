@@ -50,10 +50,14 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  // bcrypt hash, never the plaintext password. Credentials-only auth
+  // (Auth.js, see auth.ts) — no OAuth/session/account tables needed since
+  // sessions are JWT-based, not database-backed.
+  passwordHash String
+  createdAt    DateTime @default(now())
 
   accounts           Account[]
   categories         Category[]

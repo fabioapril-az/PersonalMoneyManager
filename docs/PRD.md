@@ -770,3 +770,7 @@ lo scaffolding iniziale (vedi README.md per il dettaglio):
     wrapper con retry automatico (`lib/db/azureSqlRetry.ts`) per gli errori
     di connessione transitori che Microsoft stessa documenta durante il
     risveglio.
+* **Autenticazione**: **Auth.js v5** (Credentials, email + password, sessioni
+  JWT) invece di un provider esterno — nessun servizio a pagamento. Nessuna
+  pagina di signup pubblica: l'app è per uso personale, l'utente si crea con
+  `npx prisma db seed` (`prisma/seed.ts`), non da un form esposto pubblicamente.

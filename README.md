@@ -68,12 +68,18 @@ invece (vedi `Account.archived`).
 
 ```
 app/                    Next.js App Router (pagine + route handler tRPC)
+app/login/              Pagina di login (Server Action + form)
+app/api/auth/[...nextauth]/route.ts  Route handler Auth.js
+auth.ts                 Config Auth.js (Credentials, sessioni JWT)
+proxy.ts                Protezione route (ex "middleware.ts", rinominato in Next.js 16)
 server/                 Router tRPC, context, procedure (protectedProcedure ecc.)
 lib/domain/             Business logic pura (periodo finanziario, enum, ecc.) + test
+lib/auth/               Hashing password (bcryptjs)
 lib/trpc/               Client tRPC (browser) e caller diretto (RSC)
 lib/db/                 Parsing connection string + retry auto-resume (Azure SQL) + test
-lib/prisma.ts           Singleton PrismaClient (driver adapter mssql)
+lib/prisma.ts           Singleton PrismaClient lazy (driver adapter mssql)
 prisma/schema.prisma    Modello dati (commentato con riferimenti alle sezioni del PRD)
+prisma/seed.ts          Crea/aggiorna l'utente (nessuna pagina di signup pubblica)
 ```
 
 `prisma/schema.prisma` **non** include un modello `FinancialPeriod`: è
@@ -85,12 +91,34 @@ derivabile da una data.
 
 ```bash
 npm install
-cp .env.example .env      # imposta DATABASE_URL (Azure SQL Database free tier)
+cp .env.example .env      # imposta DATABASE_URL, AUTH_SECRET, SEED_USER_*
 npx prisma generate
-npx prisma migrate dev    # crea le tabelle
+npx prisma db push        # applica lo schema (niente shadow DB su Azure SQL, vedi sotto)
+npx prisma db seed        # crea il tuo utente (email/password da SEED_USER_*)
 npm run dev
 npm test                  # vitest sulla logica di dominio
 ```
+
+`db push` invece di `migrate dev`: Azure SQL non supporta la creazione
+automatica dello shadow database che `migrate dev` userebbe. Va bene per
+questa fase (schema ancora in evoluzione, nessuna migration da preservare);
+quando si stabilizza si passa a `migrate dev` con un secondo database free
+dedicato allo shadow.
+
+## Autenticazione
+
+**Auth.js v5** (beta — coerente con lo stack già "bleeding edge": Next 16,
+Prisma 7, React 19), Credentials provider (email + password), sessioni JWT.
+Nessun servizio esterno, nessuna pagina di signup pubblica: essendo un'app
+per uso personale, l'utente si crea con `npx prisma db seed` (vedi
+`prisma/seed.ts`), non da un form pubblico.
+
+- `auth.ts`: config, hashing via `lib/auth/password.ts` (bcryptjs, no binari nativi)
+- `proxy.ts`: protegge tutte le route tranne `/login` e `/api/auth/*`
+  (controllo "ottimistico" sul solo JWT, come raccomandato dai doc Next.js —
+  l'autorizzazione vera resta in `server/trpc.ts` `protectedProcedure`)
+- `AUTH_SECRET`: genera con `openssl rand -base64 32` (o
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
 
 ## Database — Azure SQL Database, offerta free (costo: €0)
 
@@ -101,7 +129,8 @@ Setup una tantum:
    general purpose e attiva l'opzione **Free offer**.
 2. Copia server name, nome database, utente e password nel formato descritto
    in `.env.example`.
-3. `npx prisma migrate dev` crea le tabelle.
+3. `npx prisma db push` crea le tabelle (niente shadow DB su Azure SQL, vedi
+   sezione Sviluppo locale).
 
 ## Deploy — Azure App Service, piano Free (F1)
 
@@ -118,8 +147,10 @@ Setup una tantum:
 2. Configurazione → **Startup Command**: `node server.js`
    (necessario perché il deploy porta già il build `standalone` pronto,
    niente build remota Oryx).
-3. Configurazione → **Application settings**: aggiungi `DATABASE_URL` con la
-   connection string reale della SQL Database.
+3. Configurazione → **Application settings**: aggiungi `DATABASE_URL` (connection
+   string reale della SQL Database) e `AUTH_SECRET` (lo stesso valore generato
+   per il `.env` locale, o uno nuovo — dev'essere stabile tra i deploy, non
+   rigenerarlo a ogni release o invalida le sessioni di tutti).
 4. **Non usare** il tab "Deployment Center" della Web App per collegare
    GitHub — crea in automatico un secondo workflow generico
    (`main_<nomeapp>.yml`) che fa un deploy incompatibile col nostro (carica
