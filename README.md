@@ -120,13 +120,25 @@ Setup una tantum:
    niente build remota Oryx).
 3. Configurazione → **Application settings**: aggiungi `DATABASE_URL` con la
    connection string reale della SQL Database.
-4. Scarica il **Publish Profile** dal portale (Overview → "Download publish
-   profile") e salvalo come secret GitHub `AZURE_WEBAPP_PUBLISH_PROFILE`.
-5. Aggiungi il secret GitHub `AZURE_WEBAPP_NAME` (nome della Web App). Non
+4. **Non usare** il tab "Deployment Center" della Web App per collegare
+   GitHub — crea in automatico un secondo workflow generico
+   (`main_<nomeapp>.yml`) che fa un deploy incompatibile col nostro (carica
+   il repo grezzo invece del build `standalone`) e va in gara con
+   `.github/workflows/azure-deploy.yml` a ogni push. Se lo trovi già creato,
+   cancellalo dal repo — vedi il commento in cima al workflow per il
+   dettaglio. Il secret publish-profile che Azure crea in automatico in quel
+   flusso (`AZUREAPPSERVICE_PUBLISHPROFILE_<hash>`) resta comunque utile:
+   è più affidabile di uno copiato a mano, il nostro workflow lo referenzia
+   già direttamente.
+5. Se quel secret non esiste ancora (Deployment Center non è mai stato
+   aperto): scarica tu il **Publish Profile** (Overview → "Download publish
+   profile") e salvalo come secret GitHub con lo stesso nome referenziato in
+   `azure-deploy.yml`.
+6. Aggiungi il secret GitHub `AZURE_WEBAPP_NAME` (nome della Web App). Non
    serve un secret `DATABASE_URL`: `lib/prisma.ts` costruisce l'adapter in
    modo lazy, solo al primo utilizzo reale, mai al build — la connection
    string reale vive solo nell'Application Setting del punto 3.
-6. Push su `main` → la action `.github/workflows/azure-deploy.yml` builda e
+7. Push su `main` → la action `.github/workflows/azure-deploy.yml` builda e
    pubblica automaticamente.
 
 Nota sul flusso "Web App + Database" di Azure Portal: crea un Azure Database

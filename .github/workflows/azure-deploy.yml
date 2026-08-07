@@ -2,9 +2,17 @@ name: Deploy to Azure App Service
 
 # Builds Next.js standalone output in CI and ships the finished bundle to
 # Azure App Service (Free F1 tier) — Azure just runs `node server.js`, no
-# remote Oryx build. See README.md "Deploy" section for the one-time setup
-# (create the Free App Service, download its publish profile into the
-# AZURE_WEBAPP_PUBLISH_PROFILE secret, set AZURE_WEBAPP_NAME).
+# remote Oryx build. See README.md "Deploy" section for the one-time setup.
+#
+# This is the ONLY deploy workflow for this app. Do not re-enable Azure
+# Portal's "Deployment Center" continuous deployment for this Web App — it
+# auto-commits its own generic workflow (main_<appname>.yml) that uploads
+# the raw repo instead of the standalone bundle, which is incompatible with
+# the `node server.js` Startup Command below and races this workflow on
+# every push. If it reappears, delete it and reuse the publish-profile
+# secret it creates (named AZUREAPPSERVICE_PUBLISHPROFILE_<hash>) below —
+# it's fetched programmatically by Azure's backend, more reliable than a
+# manually copy-pasted one.
 
 on:
   push:
@@ -48,5 +56,8 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          # Azure's Deployment Center created this one automatically (fetched
+          # via its backend, not copy-pasted) — reusing it instead of a
+          # manually-added AZURE_WEBAPP_PUBLISH_PROFILE secret.
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_DF3ACFD8B653440A8A0D3EF3542F9B44 }}
           package: .next/standalone
