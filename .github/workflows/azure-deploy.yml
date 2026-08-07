@@ -1,0 +1,52 @@
+name: Deploy to Azure App Service
+
+# Builds Next.js standalone output in CI and ships the finished bundle to
+# Azure App Service (Free F1 tier) — Azure just runs `node server.js`, no
+# remote Oryx build. See README.md "Deploy" section for the one-time setup
+# (create the Free App Service, download its publish profile into the
+# AZURE_WEBAPP_PUBLISH_PROFILE secret, set AZURE_WEBAPP_NAME).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+        env:
+          # Only needed so lib/prisma.ts can construct its adapter during the
+          # build; no query runs at build time (dashboard pages are dynamic,
+          # not statically generated — see PRD section 11). Point it at the
+          # same Azure SQL Database connection string used in production.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Assemble standalone bundle
+        # Next.js standalone output deliberately omits static assets and the
+        # public folder — they must be copied in alongside server.js.
+        # https://nextjs.org/docs/app/api-reference/config/next-config-js/output
+        run: |
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/static
+          if [ -d public ]; then cp -r public .next/standalone/public; fi
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .next/standalone

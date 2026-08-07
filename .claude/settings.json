@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(npx vitest *)",
+      "Bash(npx --yes shadcn@latest init -y -d)",
+      "Bash(npx --yes shadcn@latest add input label select card dialog form sonner)",
+      "Bash(npx --yes shadcn@latest add form)"
+    ]
+  }
+}

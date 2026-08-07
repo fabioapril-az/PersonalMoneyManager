@@ -1,0 +1,286 @@
+// Prisma schema — Personal Money Manager
+// Modeled directly on the PRD (sections 4-11, 16). See lib/domain for the
+// business rules that operate on top of these tables (financial period,
+// installment generation, recurring generation, no-double-counting checks).
+//
+// NOTE on FinancialPeriod (PRD section 16): it is intentionally NOT a table.
+// A period (27 -> 26) is a pure function of a date, computed in
+// lib/domain/period.ts. Persisting it would risk a second source of truth
+// for something fully derivable — exactly what Rule 1 warns against.
+//
+// NOTE on referential actions (SQL Server specific): every relation below
+// sets onDelete/onUpdate EXPLICITLY, on purpose. SQL Server rejects a schema
+// at migration time if a table is reachable through more than one cascading
+// path ("may cause cycles or multiple cascade paths") — Postgres tolerates
+// this, SQL Server does not. Policy applied throughout:
+//   - onUpdate is always NoAction: primary keys are immutable cuids, so a
+//     cascading update never actually fires — declaring NoAction everywhere
+//     removes an entire dimension of path-conflicts to reason about.
+//   - onDelete is Cascade ONLY on the single direct-ownership edge from User
+//     (or from Expense -> PaymentPlan -> PaymentSchedule -> CashMovement,
+//     which is its own single unbranched chain).
+//   - onDelete is NoAction on every "classification" reference (Category,
+//     Merchant, Account, RecurringTemplate used to classify/pay something
+//     rather than own it). This isn't just a SQL Server workaround: it's
+//     also the right business rule — you can't delete a Category/Account
+//     that still has Expenses/Movements against it, you archive it instead
+//     (see Account.archived).
+//
+// NOTE on enums: SQL Server's connector does not support Prisma `enum`
+// blocks at all ("the current connector does not support enums" — Postgres
+// has a native enum type, MySQL emulates one, SQL Server has neither and
+// Prisma refuses to fake it). Every field that would have been an enum is a
+// plain String column here; the closed set of values is enforced in
+// lib/domain/enums.ts (TypeScript union type + Zod schema for every tRPC
+// input that touches it) instead of at the database level.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../app/generated/prisma"
+  moduleFormat = "cjs" // keep CJS: matches Next.js default + the standalone
+  // Azure Functions job (lib/domain reused by both, see section on recurring generation)
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+// ---------------------------------------------------------------------------
+// Core entities
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  accounts           Account[]
+  categories         Category[]
+  merchants          Merchant[]
+  expenses           Expense[]
+  incomes            Income[]
+  recurringTemplates RecurringTemplate[]
+  budgets            Budget[]
+}
+
+model Account {
+  // A financial instrument (PRD section 4): conto corrente, carta, PayPal, contanti...
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name           String
+  type           String   @db.VarChar(20) // AccountType, see lib/domain/enums.ts
+  currency       String   @default("EUR")
+  openingBalance Decimal  @default(0) @db.Decimal(12, 2)
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  paymentPlans       PaymentPlan[]
+  cashMovements      CashMovement[]
+  recurringTemplates RecurringTemplate[]
+
+  @@index([userId])
+}
+
+model Category {
+  // Supports category + subcategory via self-relation (PRD section 4).
+  id       String     @id @default(cuid())
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name     String
+  parentId String?
+  // SQL Server disallows SetNull (or any action other than NoAction) on a
+  // self-relation — so deleting a Category that still has subcategories is
+  // blocked at the DB level rather than silently orphaning them. The app
+  // layer should re-parent or delete children first.
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Category[] @relation("CategoryHierarchy")
+  icon     String?
+  color    String?
+
+  expenses           Expense[]
+  budgets            Budget[]
+  recurringTemplates RecurringTemplate[]
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model Merchant {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name   String
+
+  expenses Expense[]
+
+  @@unique([userId, name])
+}
+
+model Expense {
+  // A spending DECISION (PRD section 4). Describes WHAT was bought — never
+  // HOW it is paid (see PaymentPlan) or WHEN money actually moves (see
+  // CashMovement). Category statistics are always based on this table (Rule 4).
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  date        DateTime
+  amount      Decimal   @db.Decimal(12, 2)
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchantId  String?
+  merchant    Merchant? @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  description String
+  notes       String?
+  status      String    @default("PLANNED") @db.VarChar(20) // ExpenseStatus, see lib/domain/enums.ts
+
+  // Set when this Expense was auto-generated from a recurring template (Rule 7).
+  recurringTemplateId String?
+  recurringTemplate   RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Every Expense always has exactly one PaymentPlan (PRD section 4). The
+  // field below is optional only because Prisma requires the non-owning side
+  // of a 1:1 relation to be nullable in the schema — the app layer must
+  // always create Expense + PaymentPlan together in a single transaction.
+  paymentPlan PaymentPlan?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([categoryId])
+}
+
+model Income {
+  // Stipendio, bonus, rimborso, vendita... (PRD section 4).
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  date      DateTime
+  amount    Decimal  @db.Decimal(12, 2)
+  source    String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  cashMovements CashMovement[]
+
+  @@index([userId, date])
+}
+
+model PaymentPlan {
+  // Describes HOW an Expense will be paid (PRD section 4/8): immediato,
+  // carta, rate, PayPal, bonifico... PayPal has no special-case logic here —
+  // it is just an Account (PRD section 8).
+  id                String   @id @default(cuid())
+  expenseId         String   @unique
+  expense           Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  type              String   @db.VarChar(20) // PaymentPlanType, see lib/domain/enums.ts
+  accountId         String
+  account           Account  @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  installmentsCount Int? // null or 1 = single payment
+  startDate         DateTime
+
+  schedules PaymentSchedule[]
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+model PaymentSchedule {
+  // A single financial deadline generated by a PaymentPlan (Rule 6). N
+  // installments generate N schedules (PRD section 7); a single payment
+  // generates exactly one.
+  id            String      @id @default(cuid())
+  paymentPlanId String
+  paymentPlan   PaymentPlan @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  dueDate       DateTime
+  amount        Decimal     @db.Decimal(12, 2)
+  status        String      @default("PENDING") @db.VarChar(20) // ScheduleStatus, see lib/domain/enums.ts
+  installmentNo Int? // e.g. 1 of 3
+
+  cashMovement CashMovement?
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentPlanId])
+  @@index([dueDate])
+}
+
+model CashMovement {
+  // The REAL movement of money (PRD section 4/6). Drives account balances
+  // and cash-flow reporting (Rule 5) — never category statistics (Rule 4).
+  // A card charge or installment payment is NOT a new Expense (Rule 3).
+  id          String   @id @default(cuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  date        DateTime
+  amount      Decimal  @db.Decimal(12, 2) // signed: negative = out, positive = in
+  type        String   @db.VarChar(30) // CashMovementType, see lib/domain/enums.ts
+  status      String   @default("PLANNED") @db.VarChar(20) // CashMovementStatus, see lib/domain/enums.ts
+  description String?
+
+  // Set when this movement is the real-world settlement of a schedule
+  // (e.g. the credit card statement charge for a purchase or installment).
+  // NoAction on purpose: a PaymentSchedule that already has a real
+  // CashMovement against it must not be deletable.
+  paymentScheduleId String?          @unique
+  paymentSchedule   PaymentSchedule? @relation(fields: [paymentScheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Set when this movement is an Income being credited to an account.
+  incomeId String?
+  income   Income? @relation(fields: [incomeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Pairs the two legs of an account-to-account transfer (Rule 2: a
+  // transfer is never an Expense). Both legs share the same group id.
+  transferGroupId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId, date])
+  @@index([transferGroupId])
+}
+
+model RecurringTemplate {
+  // Defines a recurring expense (PRD section 9): Netflix, mutuo, assicurazione...
+  // Automatically generates new Expense records (Rule 7), starting in Planned
+  // status until confirmed.
+  id                     String   @id @default(cuid())
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name                   String
+  amount                 Decimal  @db.Decimal(12, 2)
+  categoryId             String
+  category               Category @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  frequency              String   @default("MONTHLY") @db.VarChar(20) // RecurringFrequency, see lib/domain/enums.ts
+  dayOfMonth             Int // 1-31, generation day
+  defaultPaymentPlanType String   @default("IMMEDIATE") @db.VarChar(20) // PaymentPlanType, see lib/domain/enums.ts
+  accountId              String
+  account                Account  @relation(fields: [accountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  active                 Boolean  @default(true)
+  nextRunDate            DateTime
+
+  expenses Expense[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([nextRunDate])
+}
+
+model Budget {
+  // Budget per category (PRD section 14). Period math (which schedules/
+  // expenses fall in the current 27->26 window) lives in lib/domain, not here.
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  amount     Decimal  @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, categoryId])
+}
