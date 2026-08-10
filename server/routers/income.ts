@@ -11,6 +11,8 @@ const createIncomeSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
+const updateIncomeSchema = createIncomeSchema.extend({ id: z.string() });
+
 export const incomeRouter = router({
   listCurrentPeriod: protectedProcedure.query(({ ctx }) => {
     const period = getCurrentFinancialPeriod();
@@ -53,6 +55,50 @@ export const incomeRouter = router({
       });
 
       return income;
+    });
+  }),
+
+  update: protectedProcedure.input(updateIncomeSchema).mutation(async ({ ctx, input }) => {
+    const income = await ctx.prisma.income.findFirst({ where: { id: input.id, userId: ctx.userId } });
+    if (!income) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const account = await ctx.prisma.account.findFirst({
+      where: { id: input.accountId, userId: ctx.userId },
+    });
+    if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Conto non trovato." });
+
+    // No PaymentPlan/Schedule chain for Income (only Expense has one) — a
+    // direct update of both rows is enough, no delete+recreate needed.
+    return ctx.prisma.$transaction(async (tx) => {
+      const updated = await tx.income.update({
+        where: { id: input.id },
+        data: { date: input.date, amount: input.amount, source: input.source, notes: input.notes },
+      });
+
+      await tx.cashMovement.updateMany({
+        where: { incomeId: input.id },
+        data: {
+          accountId: input.accountId,
+          date: input.date,
+          amount: input.amount,
+          description: input.source,
+        },
+      });
+
+      return updated;
+    });
+  }),
+
+  delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+    const income = await ctx.prisma.income.findFirst({ where: { id: input.id, userId: ctx.userId } });
+    if (!income) throw new TRPCError({ code: "NOT_FOUND" });
+
+    return ctx.prisma.$transaction(async (tx) => {
+      // CashMovement.income has onDelete: NoAction (schema.prisma) — delete
+      // it first, or Income.delete fails with a foreign key violation.
+      await tx.cashMovement.deleteMany({ where: { incomeId: input.id } });
+      await tx.income.delete({ where: { id: input.id } });
+      return { success: true } as const;
     });
   }),
 });

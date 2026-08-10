@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { NewExpenseDialog } from "./NewExpenseDialog";
 import { NewIncomeDialog } from "./NewIncomeDialog";
+import { EditExpenseDialog, type EditableExpense } from "./EditExpenseDialog";
+import { EditIncomeDialog, type EditableIncome } from "./EditIncomeDialog";
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
@@ -14,6 +17,8 @@ function formatAmount(value: unknown) {
 
 export function DashboardClient() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery();
+  const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<EditableIncome | null>(null);
 
   if (isLoading || !data) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
@@ -24,17 +29,21 @@ export function DashboardClient() {
   const recentMovements = [
     ...recentExpenses.map((e) => ({
       id: e.id,
+      kind: "expense" as const,
       date: e.date,
       label: e.description,
       sublabel: e.category.icon ? `${e.category.icon} ${e.category.name}` : e.category.name,
       amount: -Number(e.amount),
+      raw: e,
     })),
     ...recentIncomes.map((i) => ({
       id: i.id,
+      kind: "income" as const,
       date: i.date,
       label: i.source,
       sublabel: null,
       amount: Number(i.amount),
+      raw: i,
     })),
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -92,32 +101,55 @@ export function DashboardClient() {
 
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Movimenti recenti</h2>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">Clicca su un movimento per modificarlo o eliminarlo.</p>
         {recentMovements.length === 0 && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.
           </p>
         )}
         {recentMovements.map((movement) => (
-          <Card key={movement.id} className="flex flex-row items-center justify-between p-3">
-            <div>
-              <p className="text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {dateFormatter.format(new Date(movement.date))}
-                {movement.sublabel ? ` · ${movement.sublabel}` : ""}
-              </p>
-            </div>
-            <span
-              className={`text-sm font-medium ${
-                movement.amount < 0
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-emerald-600 dark:text-emerald-400"
-              }`}
-            >
-              {formatAmount(movement.amount)}
-            </span>
-          </Card>
+          <button
+            key={movement.id}
+            type="button"
+            className="text-left"
+            onClick={() =>
+              movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
+            }
+          >
+            <Card className="flex flex-row items-center justify-between p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <div>
+                <p className="text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {dateFormatter.format(new Date(movement.date))}
+                  {movement.sublabel ? ` · ${movement.sublabel}` : ""}
+                </p>
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  movement.amount < 0
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {formatAmount(movement.amount)}
+              </span>
+            </Card>
+          </button>
         ))}
       </div>
+
+      <EditExpenseDialog
+        key={editingExpense?.id ?? "none"}
+        expense={editingExpense}
+        open={editingExpense !== null}
+        onOpenChange={(open) => !open && setEditingExpense(null)}
+      />
+      <EditIncomeDialog
+        key={editingIncome?.id ?? "none"}
+        income={editingIncome}
+        open={editingIncome !== null}
+        onOpenChange={(open) => !open && setEditingIncome(null)}
+      />
     </div>
   );
 }

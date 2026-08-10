@@ -12,11 +12,16 @@ export const dashboardRouter = router({
     const [incomes, expenses, accounts] = await Promise.all([
       ctx.prisma.income.findMany({
         where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
+        // accountId non è un campo di Income (solo il suo CashMovement lo
+        // sa) — serve per pre-compilare il conto quando si modifica.
+        include: { cashMovements: { select: { accountId: true }, take: 1 } },
         orderBy: { date: "desc" },
       }),
       ctx.prisma.expense.findMany({
         where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
-        include: { category: true },
+        // Stesso motivo: l'account "vero" di un'Expense vive nel suo
+        // PaymentPlan, non sull'Expense stessa.
+        include: { category: true, paymentPlan: { select: { accountId: true } } },
         orderBy: { date: "desc" },
       }),
       listAccountsWithBalance(ctx.prisma, ctx.userId),
