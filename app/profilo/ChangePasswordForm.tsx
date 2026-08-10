@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function ChangePasswordForm() {
+  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,6 +35,13 @@ export function ChangePasswordForm() {
     }
 
     changePassword.mutate({ currentPassword, newPassword });
+  }
+
+  function handleCancel() {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    router.push("/");
   }
 
   return (
@@ -72,9 +81,14 @@ export function ChangePasswordForm() {
           required
         />
       </div>
-      <Button type="submit" disabled={changePassword.isPending}>
-        {changePassword.isPending ? "Aggiornamento…" : "Aggiorna password"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={changePassword.isPending}>
+          {changePassword.isPending ? "Aggiornamento…" : "Aggiorna password"}
+        </Button>
+        <Button type="button" variant="outline" onClick={handleCancel} disabled={changePassword.isPending}>
+          Annulla
+        </Button>
+      </div>
     </form>
   );
 }
