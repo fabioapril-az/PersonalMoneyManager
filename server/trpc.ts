@@ -1,9 +1,9 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import superjson from "superjson";
+import { SuperJSON } from "@/lib/superjson";
 import type { Context } from "./context";
 
 const t = initTRPC.context<Context>().create({
-  transformer: superjson, // lets Decimal/Date survive the client<->server hop untouched
+  transformer: SuperJSON, // lets Decimal/Date survive the client<->server hop untouched
 });
 
 export const router = t.router;

@@ -20,6 +20,12 @@ export default async function Home() {
       <header className="flex items-center justify-between px-6 py-4">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{session?.user?.email}</span>
         <div className="flex items-center gap-4">
+          <Link href="/conti" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
+            Conti
+          </Link>
+          <Link href="/categorie" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
+            Categorie
+          </Link>
           <Link href="/profilo" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
             Profilo
           </Link>
@@ -35,7 +41,7 @@ export default async function Home() {
             {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
           </h1>
           <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-            Fase 1 in corso: Account/Categorie ed Expense/Income arrivano nei prossimi step.
+            Fase 1 in corso: l&apos;inserimento rapido di Expense/Income arriva nel prossimo step.
           </p>
         </div>
       </main>
