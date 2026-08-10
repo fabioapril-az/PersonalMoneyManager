@@ -123,7 +123,7 @@ export function AccountsManager() {
               <p className="font-medium text-zinc-950 dark:text-zinc-50">{account.name}</p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {ACCOUNT_TYPE_LABELS[account.type as AccountType]} ·{" "}
-                {currencyFormatter.format(Number(account.openingBalance))}
+                {currencyFormatter.format(Number(account.balance))}
                 {account.archived && " · Archiviato"}
               </p>
             </div>

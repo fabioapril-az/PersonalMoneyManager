@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { accountTypeSchema } from "@/lib/domain/enums";
+import { listAccountsWithBalance } from "../accountBalances";
 import { protectedProcedure, router } from "../trpc";
 
 const createAccountSchema = z.object({
@@ -13,13 +14,10 @@ const createAccountSchema = z.object({
 export const accountRouter = router({
   // Archived accounts sort last, but are still returned — you can still see
   // (read-only) history against an archived account, see the schema note on
-  // why accounts are archived rather than deleted.
-  list: protectedProcedure.query(({ ctx }) =>
-    ctx.prisma.account.findMany({
-      where: { userId: ctx.userId },
-      orderBy: [{ archived: "asc" }, { name: "asc" }],
-    })
-  ),
+  // why accounts are archived rather than deleted. Each account comes back
+  // with its real `balance` (openingBalance + CashMovement), not just the
+  // static openingBalance (PRD sezione 11).
+  list: protectedProcedure.query(({ ctx }) => listAccountsWithBalance(ctx.prisma, ctx.userId)),
 
   create: protectedProcedure.input(createAccountSchema).mutation(({ ctx, input }) =>
     ctx.prisma.account.create({
