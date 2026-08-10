@@ -26,7 +26,7 @@ export function DashboardClient() {
       id: e.id,
       date: e.date,
       label: e.description,
-      sublabel: e.category.name,
+      sublabel: e.category.icon ? `${e.category.icon} ${e.category.name}` : e.category.name,
       amount: -Number(e.amount),
     })),
     ...recentIncomes.map((i) => ({

@@ -22,13 +22,18 @@ function todayInputValue() {
 
 // Categoria + sottocategoria (PRD sezione 4) come lista piatta con
 // indentazione visiva — solo 2 livelli, non serve un tree component.
-function buildCategoryOptions(categories: { id: string; name: string; parentId: string | null }[]) {
+function buildCategoryOptions(
+  categories: { id: string; name: string; parentId: string | null; icon: string | null }[]
+) {
   const topLevel = categories.filter((c) => !c.parentId);
   const options: { id: string; label: string }[] = [];
   for (const parent of topLevel) {
-    options.push({ id: parent.id, label: parent.name });
+    options.push({ id: parent.id, label: `${parent.icon ? `${parent.icon} ` : ""}${parent.name}` });
     for (const child of categories.filter((c) => c.parentId === parent.id)) {
-      options.push({ id: child.id, label: `${parent.name} › ${child.name}` });
+      options.push({
+        id: child.id,
+        label: `${child.icon ? `${child.icon} ` : ""}${parent.name} › ${child.name}`,
+      });
     }
   }
   return options;

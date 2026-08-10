@@ -3,9 +3,26 @@ import { TRPCError } from "@trpc/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { protectedProcedure, router } from "../trpc";
 
+// Icona: un'emoji (o qualunque stringa breve) — vedi CategoriesManager.tsx
+// per il selettore. Nessun set di icone "chiuso" da validare qui: qualunque
+// stringa corta va bene, è puramente decorativa.
+const iconSchema = z
+  .string()
+  .trim()
+  .max(8)
+  .nullish()
+  .transform((value) => value || null);
+
 const createCategorySchema = z.object({
   name: z.string().trim().min(1, "Il nome è obbligatorio.").max(60),
   parentId: z.string().nullish(),
+  icon: iconSchema,
+});
+
+const updateCategorySchema = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1, "Il nome è obbligatorio.").max(60).optional(),
+  icon: iconSchema,
 });
 
 export const categoryRouter = router({
@@ -28,7 +45,19 @@ export const categoryRouter = router({
     }
 
     return ctx.prisma.category.create({
-      data: { name: input.name, parentId: input.parentId ?? null, userId: ctx.userId },
+      data: { name: input.name, parentId: input.parentId ?? null, icon: input.icon, userId: ctx.userId },
+    });
+  }),
+
+  update: protectedProcedure.input(updateCategorySchema).mutation(async ({ ctx, input }) => {
+    const category = await ctx.prisma.category.findFirst({
+      where: { id: input.id, userId: ctx.userId },
+    });
+    if (!category) throw new TRPCError({ code: "NOT_FOUND" });
+
+    return ctx.prisma.category.update({
+      where: { id: input.id },
+      data: { ...(input.name !== undefined && { name: input.name }), icon: input.icon },
     });
   }),
 

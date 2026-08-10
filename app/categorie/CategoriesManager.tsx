@@ -16,8 +16,76 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmojiPicker } from "./EmojiPicker";
 
 const NO_PARENT = "__none__";
+
+function CategoryRow({
+  category,
+  indented = false,
+}: {
+  category: { id: string; name: string; icon: string | null };
+  indented?: boolean;
+}) {
+  const utils = trpc.useUtils();
+  const [editOpen, setEditOpen] = useState(false);
+  const [icon, setIcon] = useState(category.icon ?? "");
+
+  const updateCategory = trpc.category.update.useMutation({
+    onSuccess: () => {
+      utils.category.list.invalidate();
+      setEditOpen(false);
+    },
+    onError: (error) => toast.error(error.message || "Impossibile aggiornare l'icona."),
+  });
+
+  const deleteCategory = trpc.category.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Categoria eliminata.");
+      utils.category.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Impossibile eliminare la categoria."),
+  });
+
+  return (
+    <div className={`flex items-center justify-between ${indented ? "" : ""}`}>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogTrigger
+          render={
+            <button type="button" className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <span className="text-lg leading-none">{category.icon || "🏷️"}</span>
+              <span className={indented ? "text-sm text-zinc-600 dark:text-zinc-300" : "font-medium text-zinc-950 dark:text-zinc-50"}>
+                {category.name}
+              </span>
+            </button>
+          }
+        />
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Icona · {category.name}</DialogTitle>
+          </DialogHeader>
+          <EmojiPicker value={icon} onChange={setIcon} />
+          <DialogFooter>
+            <Button
+              onClick={() => updateCategory.mutate({ id: category.id, icon })}
+              disabled={updateCategory.isPending}
+            >
+              {updateCategory.isPending ? "Salvataggio…" : "Salva"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Button
+        variant={indented ? "ghost" : "outline"}
+        size="sm"
+        disabled={deleteCategory.isPending}
+        onClick={() => deleteCategory.mutate({ id: category.id })}
+      >
+        Elimina
+      </Button>
+    </div>
+  );
+}
 
 export function CategoriesManager() {
   const utils = trpc.useUtils();
@@ -25,6 +93,7 @@ export function CategoriesManager() {
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [icon, setIcon] = useState("");
   const [parentId, setParentId] = useState(NO_PARENT);
 
   const topLevel = categories?.filter((c) => !c.parentId) ?? [];
@@ -36,22 +105,15 @@ export function CategoriesManager() {
       utils.category.list.invalidate();
       setOpen(false);
       setName("");
+      setIcon("");
       setParentId(NO_PARENT);
     },
     onError: (error) => toast.error(error.message || "Impossibile creare la categoria."),
   });
 
-  const deleteCategory = trpc.category.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Categoria eliminata.");
-      utils.category.list.invalidate();
-    },
-    onError: (error) => toast.error(error.message || "Impossibile eliminare la categoria."),
-  });
-
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    createCategory.mutate({ name, parentId: parentId === NO_PARENT ? null : parentId });
+    createCategory.mutate({ name, icon, parentId: parentId === NO_PARENT ? null : parentId });
   }
 
   return (
@@ -70,6 +132,10 @@ export function CategoriesManager() {
                 <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
               <div className="flex flex-col gap-2">
+                <Label>Icona (opzionale)</Label>
+                <EmojiPicker value={icon} onChange={setIcon} />
+              </div>
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="category-parent">Categoria padre (opzionale)</Label>
                 <Select value={parentId} onValueChange={(value) => setParentId(value ?? NO_PARENT)}>
                   <SelectTrigger id="category-parent" className="w-full">
@@ -79,6 +145,7 @@ export function CategoriesManager() {
                     <SelectItem value={NO_PARENT}>Nessuna (categoria principale)</SelectItem>
                     {topLevel.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
+                        {category.icon ? `${category.icon} ` : ""}
                         {category.name}
                       </SelectItem>
                     ))}
@@ -105,31 +172,11 @@ export function CategoriesManager() {
       <div className="flex flex-col gap-2">
         {topLevel.map((category) => (
           <Card key={category.id} className="flex flex-col gap-2 p-4">
-            <div className="flex items-center justify-between">
-              <p className="font-medium text-zinc-950 dark:text-zinc-50">{category.name}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={deleteCategory.isPending}
-                onClick={() => deleteCategory.mutate({ id: category.id })}
-              >
-                Elimina
-              </Button>
-            </div>
+            <CategoryRow category={category} />
             {childrenOf(category.id).length > 0 && (
               <div className="flex flex-col gap-1 border-l border-zinc-200 pl-3 dark:border-zinc-800">
                 {childrenOf(category.id).map((child) => (
-                  <div key={child.id} className="flex items-center justify-between">
-                    <p className="text-sm text-zinc-600 dark:text-zinc-300">{child.name}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={deleteCategory.isPending}
-                      onClick={() => deleteCategory.mutate({ id: child.id })}
-                    >
-                      Elimina
-                    </Button>
-                  </div>
+                  <CategoryRow key={child.id} category={child} indented />
                 ))}
               </div>
             )}
