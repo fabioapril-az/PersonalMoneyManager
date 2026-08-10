@@ -12,7 +12,14 @@ import type { config as MssqlConfig } from "mssql";
  * object. Parsing keeps ONE value as the source of truth instead of two
  * that could silently drift out of sync.
  */
-export function parseSqlServerUrl(url: string): MssqlConfig {
+export function parseSqlServerUrl(rawUrl: string): MssqlConfig {
+  // Defensive against the most common copy-paste mistake: pasting a value
+  // straight out of a .env file (`KEY="value"`) INCLUDING the quotes into a
+  // plain-value field (e.g. an Azure App Service Application Setting) — the
+  // literal quote character then becomes part of the "host", which fails
+  // with a confusing getaddrinfo ENOTFOUND error far from this file.
+  const url = rawUrl.trim().replace(/^["']|["']$/g, "");
+
   const withoutScheme = url.replace(/^sqlserver:\/\//i, "");
   const [hostPort, ...params] = withoutScheme.split(";").filter(Boolean);
 
