@@ -31,7 +31,6 @@ function BudgetBar({ percentUsed }: { percentUsed: number }) {
 
 export function DashboardClient() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery();
-  const { data: budgets } = trpc.budget.list.useQuery();
   const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
   const [editingIncome, setEditingIncome] = useState<EditableIncome | null>(null);
 
@@ -39,7 +38,10 @@ export function DashboardClient() {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
   }
 
-  const { period, totalIncome, totalExpense, available, accounts, recentExpenses, recentIncomes } = data;
+  const { period, totalIncome, totalExpense, available, monthlyBudget, accounts, recentExpenses, recentIncomes } =
+    data;
+  const budgetAmount = monthlyBudget != null ? Number(monthlyBudget) : null;
+  const budgetPercentUsed = budgetAmount ? (Number(totalExpense) / budgetAmount) * 100 : 0;
 
   const recentMovements = [
     ...recentExpenses.map((e) => ({
@@ -114,30 +116,29 @@ export function DashboardClient() {
         ))}
       </div>
 
-      {budgets && budgets.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget</h2>
-            <Link href="/budget" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400">
-              Gestisci
-            </Link>
-          </div>
-          {budgets.map((budget) => (
-            <Card key={budget.id} className="flex flex-col gap-1 p-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-800 dark:text-zinc-200">
-                  {budget.categoryIcon ? `${budget.categoryIcon} ` : ""}
-                  {budget.categoryName}
-                </span>
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  {formatAmount(budget.spent)} / {formatAmount(budget.amount)}
-                </span>
-              </div>
-              <BudgetBar percentUsed={budget.percentUsed} />
-            </Card>
-          ))}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
+          <Link href="/budget" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400">
+            {budgetAmount != null ? "Gestisci" : "Imposta"}
+          </Link>
         </div>
-      )}
+        {budgetAmount == null ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Nessun budget impostato — vai su &quot;Budget&quot; per definirne uno.
+          </p>
+        ) : (
+          <Card className="flex flex-col gap-1 p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-800 dark:text-zinc-200">Speso / Budget</span>
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {formatAmount(totalExpense)} / {formatAmount(budgetAmount)}
+              </span>
+            </div>
+            <BudgetBar percentUsed={budgetPercentUsed} />
+          </Card>
+        )}
+      </div>
 
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Movimenti recenti</h2>

@@ -9,7 +9,7 @@ export const dashboardRouter = router({
   summary: protectedProcedure.query(async ({ ctx }) => {
     const period = getCurrentFinancialPeriod();
 
-    const [incomes, expenses, accounts] = await Promise.all([
+    const [incomes, expenses, accounts, user] = await Promise.all([
       ctx.prisma.income.findMany({
         where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
         // accountId non è un campo di Income (solo il suo CashMovement lo
@@ -25,6 +25,7 @@ export const dashboardRouter = router({
         orderBy: { date: "desc" },
       }),
       listAccountsWithBalance(ctx.prisma, ctx.userId),
+      ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
     ]);
 
     const totalIncome = incomes.reduce((sum, i) => sum.plus(i.amount), new Prisma.Decimal(0));
@@ -36,6 +37,10 @@ export const dashboardRouter = router({
       totalExpense,
       // PRD sezione 11: Entrate - Spese del periodo, MAI il saldo conto.
       available: totalIncome.minus(totalExpense),
+      // Tetto di spesa complessivo scelto dall'utente — indipendente da
+      // quando/se sono state registrate le entrate (a differenza di
+      // "available" sopra). Null se non impostato.
+      monthlyBudget: user.monthlyBudget,
       accounts,
       recentExpenses: expenses.slice(0, 5),
       recentIncomes: incomes.slice(0, 5),

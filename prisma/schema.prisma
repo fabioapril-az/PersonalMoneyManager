@@ -59,6 +59,13 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
+  // Un unico tetto di spesa mensile complessivo, confrontato con il totale
+  // delle Expense del periodo (non con "Disponibile" — quello resta
+  // Entrate-Spese, PRD sezione 11). Deliberatamente un singolo valore, non
+  // per categoria: il modello Budget sotto resta per un eventuale uso futuro
+  // più granulare, ma oggi l'app espone solo questo.
+  monthlyBudget Decimal? @db.Decimal(12, 2)
+
   accounts           Account[]
   categories         Category[]
   merchants          Merchant[]
