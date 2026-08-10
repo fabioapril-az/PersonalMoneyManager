@@ -11,6 +11,14 @@ const createAccountSchema = z.object({
   openingBalance: z.number().finite().default(0),
 });
 
+const updateAccountSchema = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1, "Il nome è obbligatorio.").max(60).optional(),
+  type: accountTypeSchema.optional(),
+  currency: z.string().trim().min(1).max(10).optional(),
+  openingBalance: z.number().finite().optional(),
+});
+
 export const accountRouter = router({
   // Archived accounts sort last, but are still returned — you can still see
   // (read-only) history against an archived account, see the schema note on
@@ -24,6 +32,16 @@ export const accountRouter = router({
       data: { ...input, userId: ctx.userId },
     })
   ),
+
+  update: protectedProcedure.input(updateAccountSchema).mutation(async ({ ctx, input }) => {
+    const account = await ctx.prisma.account.findFirst({
+      where: { id: input.id, userId: ctx.userId },
+    });
+    if (!account) throw new TRPCError({ code: "NOT_FOUND" });
+
+    const { id, ...data } = input;
+    return ctx.prisma.account.update({ where: { id }, data });
+  }),
 
   setArchived: protectedProcedure
     .input(z.object({ id: z.string(), archived: z.boolean() }))
