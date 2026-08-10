@@ -4,8 +4,7 @@ import { listAccountsWithBalance } from "../accountBalances";
 import { protectedProcedure, router } from "../trpc";
 
 export const dashboardRouter = router({
-  // Tutto quello che serve alla home in una chiamata (PRD sezione 11):
-  // Entrate, Spese, Disponibile, saldo conti, movimenti recenti.
+  // Tutto quello che serve alla home in una chiamata.
   summary: protectedProcedure.query(async ({ ctx }) => {
     const period = getCurrentFinancialPeriod();
 
@@ -31,15 +30,22 @@ export const dashboardRouter = router({
     const totalIncome = incomes.reduce((sum, i) => sum.plus(i.amount), new Prisma.Decimal(0));
     const totalExpense = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
 
+    // Liquidità reale disponibile: somma dei saldi dei conti attivi.
+    // Deliberatamente NON "saldo - spese": le spese già pagate hanno già
+    // abbassato il saldo del conto tramite il loro CashMovement (Rule 5) —
+    // sottrarle di nuovo qui le conterebbe due volte (Rule 1). I conti
+    // archiviati non contano: non sono più liquidità operativa.
+    const available = accounts
+      .filter((account) => !account.archived)
+      .reduce((sum, account) => sum.plus(account.balance), new Prisma.Decimal(0));
+
     return {
       period,
       totalIncome,
       totalExpense,
-      // PRD sezione 11: Entrate - Spese del periodo, MAI il saldo conto.
-      available: totalIncome.minus(totalExpense),
-      // Tetto di spesa complessivo scelto dall'utente — indipendente da
-      // quando/se sono state registrate le entrate (a differenza di
-      // "available" sopra). Null se non impostato.
+      available,
+      // Tetto di spesa complessivo scelto dall'utente, confrontato con
+      // totalExpense (vedi app/budget). Null se non impostato.
       monthlyBudget: user.monthlyBudget,
       accounts,
       recentExpenses: expenses.slice(0, 5),

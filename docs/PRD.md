@@ -774,3 +774,15 @@ lo scaffolding iniziale (vedi README.md per il dettaglio):
   JWT) invece di un provider esterno — nessun servizio a pagamento. Nessuna
   pagina di signup pubblica: l'app è per uso personale, l'utente si crea con
   `npx prisma db seed` (`prisma/seed.ts`), non da un form esposto pubblicamente.
+* **Disponibile** (sezione 11): ridefinito come **somma dei saldi dei conti
+  attivi**, non più "Entrate − Spese del periodo". Motivo: con saldi iniziali
+  impostati sui conti (anziché registrare ogni entrata storica), la formula
+  originale va sotto zero alla prima spesa se le entrate del periodo non sono
+  ancora state registrate — un indicatore di liquidità reale è più utile
+  nell'uso quotidiano. "Saldo − Spese" sarebbe stato un doppio conteggio: le
+  spese già pagate hanno già abbassato il saldo del conto tramite il loro
+  CashMovement (Rule 5), quindi somma-e-basta è la versione corretta.
+* **Budget** (sezione 14): un **unico tetto di spesa mensile complessivo**
+  (`User.monthlyBudget`), non per categoria. Il modello `Budget` per-categoria
+  resta nello schema per un eventuale uso futuro più granulare, ma non è
+  esposto dall'app oggi.
