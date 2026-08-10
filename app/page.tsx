@@ -17,6 +17,9 @@ export default async function Home() {
           <Link href="/categorie" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
             Categorie
           </Link>
+          <Link href="/budget" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
+            Budget
+          </Link>
           <Link href="/profilo" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
             Profilo
           </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { NewExpenseDialog } from "./NewExpenseDialog";
@@ -15,8 +16,22 @@ function formatAmount(value: unknown) {
   return currencyFormatter.format(Number(value));
 }
 
+function BudgetBar({ percentUsed }: { percentUsed: number }) {
+  const clamped = Math.min(100, Math.max(0, percentUsed));
+  const overBudget = percentUsed > 100;
+  return (
+    <div className="h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-800">
+      <div
+        className={`h-1.5 rounded-full ${overBudget ? "bg-red-600 dark:bg-red-400" : "bg-emerald-600 dark:bg-emerald-400"}`}
+        style={{ width: `${clamped}%` }}
+      />
+    </div>
+  );
+}
+
 export function DashboardClient() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery();
+  const { data: budgets } = trpc.budget.list.useQuery();
   const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
   const [editingIncome, setEditingIncome] = useState<EditableIncome | null>(null);
 
@@ -98,6 +113,31 @@ export function DashboardClient() {
           </Card>
         ))}
       </div>
+
+      {budgets && budgets.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget</h2>
+            <Link href="/budget" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400">
+              Gestisci
+            </Link>
+          </div>
+          {budgets.map((budget) => (
+            <Card key={budget.id} className="flex flex-col gap-1 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-800 dark:text-zinc-200">
+                  {budget.categoryIcon ? `${budget.categoryIcon} ` : ""}
+                  {budget.categoryName}
+                </span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {formatAmount(budget.spent)} / {formatAmount(budget.amount)}
+                </span>
+              </div>
+              <BudgetBar percentUsed={budget.percentUsed} />
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Movimenti recenti</h2>

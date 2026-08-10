@@ -6,6 +6,7 @@ import { categoryRouter } from "./category";
 import { incomeRouter } from "./income";
 import { expenseRouter } from "./expense";
 import { dashboardRouter } from "./dashboard";
+import { budgetRouter } from "./budget";
 
 export const appRouter = router({
   period: periodRouter,
@@ -15,6 +16,7 @@ export const appRouter = router({
   income: incomeRouter,
   expense: expenseRouter,
   dashboard: dashboardRouter,
+  budget: budgetRouter,
 });
 
 export type AppRouter = typeof appRouter;
