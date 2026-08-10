@@ -1,4 +1,4 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { Context } from "./context";
 
@@ -9,12 +9,12 @@ const t = initTRPC.context<Context>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-// Placeholder until auth (Fase 1 of the roadmap) lands: throws if no user is
-// attached to the request context, so every router can already opt in to
-// "this needs a logged-in user" without knowing how auth is implemented yet.
+// Requires a logged-in user (see server/context.ts, auth.ts). Narrows
+// ctx.userId from `string | undefined` to `string` for every router that
+// uses this instead of publicProcedure.
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.userId) {
-    throw new Error("UNAUTHORIZED");
+    throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   return next({ ctx: { ...ctx, userId: ctx.userId } });
 });

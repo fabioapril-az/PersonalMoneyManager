@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { createServerCaller } from "@/lib/trpc/server-caller";
 import { LogoutButton } from "./logout-button";
@@ -18,7 +19,12 @@ export default async function Home() {
     <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-black">
       <header className="flex items-center justify-between px-6 py-4">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">{session?.user?.email}</span>
-        <LogoutButton />
+        <div className="flex items-center gap-4">
+          <Link href="/profilo" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
+            Profilo
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
       <main className="flex flex-1 flex-col items-center px-6 py-16">
         <div className="flex w-full max-w-xl flex-col gap-2 text-center">

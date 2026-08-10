@@ -14,7 +14,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // persist, so a database session/account table (Auth.js's Prisma
   // adapter) would just be unused overhead — the signed cookie IS the
   // session. See prisma/schema.prisma User.passwordHash comment.
-  session: { strategy: "jwt" },
+  //
+  // maxAge 90 days (Auth.js default is 30): personal app on a trusted
+  // device — logging in again every few weeks is friction with no real
+  // security upside here. The cookie auto-renews on activity (updateAge,
+  // default 24h), so an active user effectively never sees the login page
+  // again until they explicitly log out.
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 90 },
   pages: { signIn: "/login" },
   // Required outside Vercel (e.g. Azure App Service): without this, Auth.js
   // rejects requests with an "UntrustedHost" error because it can't
