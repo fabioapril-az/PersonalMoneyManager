@@ -8,6 +8,7 @@ import { expenseRouter } from "./expense";
 import { dashboardRouter } from "./dashboard";
 import { budgetRouter } from "./budget";
 import { paymentScheduleRouter } from "./paymentSchedule";
+import { transferRouter } from "./transfer";
 
 export const appRouter = router({
   period: periodRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   budget: budgetRouter,
   paymentSchedule: paymentScheduleRouter,
+  transfer: transferRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewExpenseDialog } from "./NewExpenseDialog";
 import { NewIncomeDialog } from "./NewIncomeDialog";
+import { NewTransferDialog } from "./NewTransferDialog";
 import { EditExpenseDialog, type EditableExpense } from "./EditExpenseDialog";
 import { EditIncomeDialog, type EditableIncome } from "./EditIncomeDialog";
 
@@ -28,6 +29,7 @@ type CashMovementItem = {
   type: string;
   description: string | null;
   account: { name: string };
+  transferGroupId: string | null;
   paymentSchedule: {
     installmentNo: number | null;
     paymentPlan: {
@@ -134,6 +136,17 @@ function PendingSchedulesSection() {
 // questo periodo compaiono qui per data di CashMovement, anche se la spesa
 // che li ha generati è stata decisa in un periodo precedente.
 function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) {
+  const utils = trpc.useUtils();
+
+  const deleteTransfer = trpc.transfer.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Trasferimento eliminato.");
+      utils.dashboard.summary.invalidate();
+      utils.account.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Impossibile eliminare il trasferimento."),
+  });
+
   if (movements.length === 0) return null;
 
   return (
@@ -163,13 +176,28 @@ function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) 
                   {typeLabel ? ` · ${typeLabel}` : ""}
                 </p>
               </div>
-              <span
-                className={`shrink-0 text-sm font-medium ${
-                  isOutflow ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
-                }`}
-              >
-                {formatAmount(movement.amount)}
-              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`text-sm font-medium ${
+                    isOutflow ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {formatAmount(movement.amount)}
+                </span>
+                {/* Solo i trasferimenti si eliminano da qui: le altre righe
+                    derivano da una Expense/Income/rata che si gestisce dalla
+                    sua sezione dedicata, non ha senso duplicare l'azione qui. */}
+                {movement.transferGroupId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={deleteTransfer.isPending}
+                    onClick={() => deleteTransfer.mutate({ transferGroupId: movement.transferGroupId! })}
+                  >
+                    Elimina
+                  </Button>
+                )}
+              </div>
             </Card>
           );
         })}
@@ -271,9 +299,10 @@ export function DashboardClient() {
         )}
       </div>
 
-      <div className="flex justify-center gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         <NewExpenseDialog />
         <NewIncomeDialog />
+        <NewTransferDialog />
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
