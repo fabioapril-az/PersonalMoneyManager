@@ -248,8 +248,8 @@ export function DashboardClient() {
     setReferenceDate(undefined);
   }
   const budgetAmount = monthlyBudget != null ? Number(monthlyBudget) : null;
-  // Budget segue le scadenze reali (budgetSpent), non "Spese" (totalExpense)
-  // — vedi il commento in server/routers/dashboard.ts.
+  // Regola ibrida (non sempre = totalExpense) — vedi il commento su
+  // budgetSpent in server/routers/dashboard.ts.
   const budgetPercentUsed = budgetAmount ? (Number(budgetSpent) / budgetAmount) * 100 : 0;
 
   const recentMovements = [
@@ -354,10 +354,9 @@ export function DashboardClient() {
         </div>
       </CollapsibleSection>
 
-      <PendingSchedulesSection />
-
-      <CashMovementsSection movements={cashMovements} />
-
+      {/* Sotto Budget va tutto ciò che concorre al suo valore — pagamento
+          immediato/carta (Spese e entrate) e rate (Impegni futuri se ancora
+          da pagare, Movimenti di cassa quando la singola rata è saldata). */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
@@ -382,46 +381,51 @@ export function DashboardClient() {
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Spese e entrate</h2>
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
-        </p>
-        {recentMovements.length === 0 && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.
+      <PendingSchedulesSection />
+
+      <CashMovementsSection movements={cashMovements} />
+
+      <CollapsibleSection title="Spese e entrate" defaultOpen>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">
+            Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
           </p>
-        )}
-        {recentMovements.map((movement) => (
-          <button
-            key={movement.id}
-            type="button"
-            className="w-full text-left"
-            onClick={() =>
-              movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
-            }
-          >
-            <Card className="flex flex-row items-center justify-between gap-2 p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <div className="min-w-0">
-                <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
-                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                  {dateFormatter.format(new Date(movement.date))}
-                  {movement.sublabel ? ` · ${movement.sublabel}` : ""}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 text-sm font-medium ${
-                  movement.amount < 0
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-emerald-600 dark:text-emerald-400"
-                }`}
-              >
-                {formatAmount(movement.amount)}
-              </span>
-            </Card>
-          </button>
-        ))}
-      </div>
+          {recentMovements.length === 0 && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.
+            </p>
+          )}
+          {recentMovements.map((movement) => (
+            <button
+              key={movement.id}
+              type="button"
+              className="w-full text-left"
+              onClick={() =>
+                movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
+              }
+            >
+              <Card className="flex flex-row items-center justify-between gap-2 p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    {dateFormatter.format(new Date(movement.date))}
+                    {movement.sublabel ? ` · ${movement.sublabel}` : ""}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 text-sm font-medium ${
+                    movement.amount < 0
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {formatAmount(movement.amount)}
+                </span>
+              </Card>
+            </button>
+          ))}
+        </div>
+      </CollapsibleSection>
 
       <EditExpenseDialog
         key={editingExpense?.id ?? "none"}
