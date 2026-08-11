@@ -258,7 +258,15 @@ export function DashboardClient() {
       kind: "expense" as const,
       date: e.date,
       label: e.description,
-      sublabel: e.category.icon ? `${e.category.icon} ${e.category.name}` : e.category.name,
+      // Categoria (cosa) + conto e, se a rate, quante (come) — vedi il
+      // commento su paymentPlan in server/routers/dashboard.ts.
+      sublabel: [
+        e.category.icon ? `${e.category.icon} ${e.category.name}` : e.category.name,
+        e.paymentPlan?.account.name,
+        e.paymentPlan?.installmentsCount ? `${e.paymentPlan.installmentsCount} rate` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       amount: -Number(e.amount),
       raw: e,
     })),
@@ -267,7 +275,9 @@ export function DashboardClient() {
       kind: "income" as const,
       date: i.date,
       label: i.source,
-      sublabel: null,
+      // Conto di accredito (come) — un'entrata non ha un "metodo di
+      // pagamento", solo il conto su cui è arrivata.
+      sublabel: i.cashMovements[0]?.account.name ?? null,
       amount: Number(i.amount),
       raw: i,
     })),

@@ -20,16 +20,24 @@ export const dashboardRouter = router({
         ctx.prisma.income.findMany({
           where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
           // accountId non è un campo di Income (solo il suo CashMovement lo
-          // sa) — serve per pre-compilare il conto quando si modifica.
-          include: { cashMovements: { select: { accountId: true }, take: 1 } },
+          // sa) — serve per pre-compilare il conto quando si modifica. Il
+          // nome del conto invece serve solo per mostrare "come" (su quale
+          // conto) è stata accreditata, in "Spese e entrate".
+          include: {
+            cashMovements: { select: { accountId: true, account: { select: { name: true } } }, take: 1 },
+          },
           orderBy: { date: "desc" },
         }),
         ctx.prisma.expense.findMany({
           where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
           // Stesso motivo: l'account "vero" di un'Expense vive nel suo
           // PaymentPlan, non sull'Expense stessa. installmentsCount serve per
-          // pre-compilare il form di modifica se la spesa è a rate.
-          include: { category: true, paymentPlan: { select: { accountId: true, installmentsCount: true } } },
+          // pre-compilare il form di modifica se la spesa è a rate, e insieme
+          // al nome del conto per mostrare "come" è stata pagata.
+          include: {
+            category: true,
+            paymentPlan: { select: { accountId: true, installmentsCount: true, account: { select: { name: true } } } },
+          },
           orderBy: { date: "desc" },
         }),
         // Per il Budget, non per "Spese" — vedi sotto. Conta per data di
