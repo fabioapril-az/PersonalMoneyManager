@@ -83,13 +83,13 @@ function AccountRow({ account }: { account: AccountListItem }) {
   }
 
   return (
-    <Card className={`flex flex-row items-center justify-between p-4 ${account.archived ? "opacity-50" : ""}`}>
+    <Card className={`flex flex-row items-center justify-between gap-2 p-4 ${account.archived ? "opacity-50" : ""}`}>
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogTrigger
           render={
-            <button type="button" className="rounded-md text-left hover:opacity-70">
-              <p className="font-medium text-zinc-950 dark:text-zinc-50">{account.name}</p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <button type="button" className="min-w-0 flex-1 rounded-md text-left hover:opacity-70">
+              <p className="truncate font-medium text-zinc-950 dark:text-zinc-50">{account.name}</p>
+              <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
                 {ACCOUNT_TYPE_LABELS[account.type as AccountType]} · {currencyFormatter.format(Number(account.balance))}
                 {account.archived && " · Archiviato"}
               </p>
@@ -132,6 +132,7 @@ function AccountRow({ account }: { account: AccountListItem }) {
       <Button
         variant="outline"
         size="sm"
+        className="shrink-0"
         disabled={setArchived.isPending}
         onClick={() => setArchived.mutate({ id: account.id, archived: !account.archived })}
       >

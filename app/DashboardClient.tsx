@@ -82,20 +82,24 @@ export function DashboardClient() {
         <NewIncomeDialog />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="flex flex-col gap-1 p-4 text-center">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">Entrate</p>
-          <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+          <p className="text-sm font-semibold text-emerald-600 sm:text-lg dark:text-emerald-400">
             {formatAmount(totalIncome)}
           </p>
         </Card>
-        <Card className="flex flex-col gap-1 p-4 text-center">
+        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">Spese</p>
-          <p className="text-lg font-semibold text-red-600 dark:text-red-400">{formatAmount(totalExpense)}</p>
+          <p className="text-sm font-semibold text-red-600 sm:text-lg dark:text-red-400">
+            {formatAmount(totalExpense)}
+          </p>
         </Card>
-        <Card className="flex flex-col gap-1 p-4 text-center">
+        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">Disponibile</p>
-          <p className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">{formatAmount(available)}</p>
+          <p className="text-sm font-semibold text-zinc-950 sm:text-lg dark:text-zinc-50">
+            {formatAmount(available)}
+          </p>
         </Card>
       </div>
 
@@ -107,9 +111,9 @@ export function DashboardClient() {
           </p>
         )}
         {accounts.map((account) => (
-          <Card key={account.id} className="flex flex-row items-center justify-between p-3">
-            <span className="text-sm text-zinc-800 dark:text-zinc-200">{account.name}</span>
-            <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+          <Card key={account.id} className="flex flex-row items-center justify-between gap-2 p-3">
+            <span className="min-w-0 truncate text-sm text-zinc-800 dark:text-zinc-200">{account.name}</span>
+            <span className="shrink-0 text-sm font-medium text-zinc-950 dark:text-zinc-50">
               {formatAmount(account.balance)}
             </span>
           </Card>
@@ -152,21 +156,21 @@ export function DashboardClient() {
           <button
             key={movement.id}
             type="button"
-            className="text-left"
+            className="w-full text-left"
             onClick={() =>
               movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
             }
           >
-            <Card className="flex flex-row items-center justify-between p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <div>
-                <p className="text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <Card className="flex flex-row items-center justify-between gap-2 p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{movement.label}</p>
+                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                   {dateFormatter.format(new Date(movement.date))}
                   {movement.sublabel ? ` · ${movement.sublabel}` : ""}
                 </p>
               </div>
               <span
-                className={`text-sm font-medium ${
+                className={`shrink-0 text-sm font-medium ${
                   movement.amount < 0
                     ? "text-red-600 dark:text-red-400"
                     : "text-emerald-600 dark:text-emerald-400"

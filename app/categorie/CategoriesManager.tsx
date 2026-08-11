@@ -48,13 +48,18 @@ function CategoryRow({
   });
 
   return (
-    <div className={`flex items-center justify-between ${indented ? "" : ""}`}>
+    <div className="flex items-center justify-between gap-2">
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogTrigger
           render={
-            <button type="button" className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <span className="text-lg leading-none">{category.icon || "🏷️"}</span>
-              <span className={indented ? "text-sm text-zinc-600 dark:text-zinc-300" : "font-medium text-zinc-950 dark:text-zinc-50"}>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              <span className="shrink-0 text-lg leading-none">{category.icon || "🏷️"}</span>
+              <span
+                className={`truncate ${indented ? "text-sm text-zinc-600 dark:text-zinc-300" : "font-medium text-zinc-950 dark:text-zinc-50"}`}
+              >
                 {category.name}
               </span>
             </button>
@@ -78,6 +83,7 @@ function CategoryRow({
       <Button
         variant={indented ? "ghost" : "outline"}
         size="sm"
+        className="shrink-0"
         disabled={deleteCategory.isPending}
         onClick={() => deleteCategory.mutate({ id: category.id })}
       >
