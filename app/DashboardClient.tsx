@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
@@ -27,6 +28,32 @@ function BudgetBar({ percentUsed }: { percentUsed: number }) {
         className={`h-1.5 rounded-full ${overBudget ? "bg-red-600 dark:bg-red-400" : "bg-emerald-600 dark:bg-emerald-400"}`}
         style={{ width: `${clamped}%` }}
       />
+    </div>
+  );
+}
+
+// Riquadro apri/chiudi generico — "Saldo conti" con molti conti finiva per
+// occupare da solo tutto lo schermo prima di arrivare al resto (budget,
+// movimenti, ecc.), soprattutto su mobile.
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="flex flex-col gap-2">
+      <button type="button" className="flex items-center justify-between" onClick={() => setOpen((v) => !v)}>
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{title}</h2>
+        <ChevronDown
+          className={`size-4 shrink-0 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && children}
     </div>
   );
 }
@@ -152,22 +179,23 @@ export function DashboardClient() {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Saldo conti</h2>
-        {accounts.length === 0 && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Nessun conto ancora — vai su &quot;Conti&quot; per crearne uno.
-          </p>
-        )}
-        {accounts.map((account) => (
-          <Card key={account.id} className="flex flex-row items-center justify-between gap-2 p-3">
-            <span className="min-w-0 truncate text-sm text-zinc-800 dark:text-zinc-200">{account.name}</span>
-            <span className="shrink-0 text-sm font-medium text-zinc-950 dark:text-zinc-50">
-              {formatAmount(account.balance)}
-            </span>
-          </Card>
-        ))}
-      </div>
+      <CollapsibleSection title="Saldo conti">
+        <div className="flex flex-col gap-2">
+          {accounts.length === 0 && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Nessun conto ancora — vai su &quot;Conti&quot; per crearne uno.
+            </p>
+          )}
+          {accounts.map((account) => (
+            <Card key={account.id} className="flex flex-row items-center justify-between gap-2 p-3">
+              <span className="min-w-0 truncate text-sm text-zinc-800 dark:text-zinc-200">{account.name}</span>
+              <span className="shrink-0 text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                {formatAmount(account.balance)}
+              </span>
+            </Card>
+          ))}
+        </div>
+      </CollapsibleSection>
 
       <PendingSchedulesSection />
 
