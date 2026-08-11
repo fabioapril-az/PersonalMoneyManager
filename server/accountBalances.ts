@@ -1,5 +1,6 @@
 import { Prisma } from "@/app/generated/prisma/client";
 import type { Context } from "./context";
+import { settleOverdueCardCharges } from "./settleOverdueCardCharges";
 
 /**
  * Saldo reale di ogni account (PRD sezione 11): openingBalance + somma dei
@@ -10,6 +11,11 @@ import type { Context } from "./context";
  * dell'adapter mssql che non abbiamo ancora verificato a fondo.
  */
 export async function listAccountsWithBalance(prisma: Context["prisma"], userId: string) {
+  // Prima di calcolare i saldi, salda da sola ogni carta di credito il cui
+  // addebito è già scaduto — altrimenti il saldo mostrato resterebbe più
+  // alto di quello reale finché l'utente non clicca "Segna pagato" a mano.
+  await settleOverdueCardCharges(prisma, userId);
+
   const accounts = await prisma.account.findMany({
     where: { userId },
     orderBy: [{ archived: "asc" }, { name: "asc" }],

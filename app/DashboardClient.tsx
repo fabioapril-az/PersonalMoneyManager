@@ -128,6 +128,50 @@ function BudgetBreakdownSection({ lines }: { lines: BudgetLineItem[] }) {
   );
 }
 
+type PendingScheduleItem = {
+  id: string;
+  dueDate: Date | string;
+  amount: unknown;
+  installmentNo: number | null;
+  paymentPlan: {
+    type: string;
+    installmentsCount: number | null;
+    account: { name: string };
+    expense: { description: string; category: { icon: string | null } };
+  };
+};
+
+function PendingScheduleCard({ schedule, onMarkPaid, disabled }: { schedule: PendingScheduleItem; onMarkPaid: () => void; disabled: boolean }) {
+  return (
+    <Card className="flex flex-row items-center justify-between gap-2 p-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+          {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
+          {schedule.paymentPlan.expense.description}
+          {schedule.paymentPlan.type === "INSTALLMENTS" &&
+            ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
+        </p>
+        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+          {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{formatAmount(schedule.amount)}</span>
+        <Button size="sm" variant="outline" disabled={disabled} onClick={onMarkPaid}>
+          Segna pagato
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// Due liste separate, non una sola "Impegni futuri": una rata resta a saldo
+// manuale per scelta esplicita (potresti pagarla in anticipo, o scalare
+// diversamente dall'addebito atteso), mentre un addebito carta di credito
+// "semplice" avviene in banca in automatico alla data di fatturazione —
+// quindi qui non compaiono più addebiti scaduti (settleOverdueCardCharges
+// li salda da soli prima di questa query, vedi server/routers/paymentSchedule.ts),
+// solo quelli futuri non ancora dovuti.
 function PendingSchedulesSection() {
   const utils = trpc.useUtils();
   const { data: pending, isLoading } = trpc.paymentSchedule.listPending.useQuery();
@@ -142,41 +186,49 @@ function PendingSchedulesSection() {
     onError: (error) => toast.error(error.message || "Impossibile aggiornare la scadenza."),
   });
 
-  if (isLoading || !pending || pending.length === 0) return null;
+  if (isLoading || !pending) return null;
 
-  // Come "Saldo conti": può contenere molte rate/addebiti e finire per
-  // occupare tutto lo schermo prima del resto del contenuto.
+  const installments = pending.filter((s) => s.paymentPlan.type === "INSTALLMENTS");
+  const cardCharges = pending.filter((s) => s.paymentPlan.type !== "INSTALLMENTS");
+
   return (
-    <CollapsibleSection title={`Impegni futuri (${pending.length})`}>
-      <div className="flex flex-col gap-2">
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Addebiti carta e rate non ancora avvenuti — non contano ancora sul saldo del conto.
-        </p>
-        {pending.map((schedule) => (
-          <Card key={schedule.id} className="flex flex-row items-center justify-between gap-2 p-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
-                {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
-                {schedule.paymentPlan.expense.description}
-                {schedule.paymentPlan.type === "INSTALLMENTS" &&
-                  ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
-              </p>
-              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
-                {formatAmount(schedule.amount)}
-              </span>
-              <Button size="sm" variant="outline" disabled={markPaid.isPending} onClick={() => markPaid.mutate({ id: schedule.id })}>
-                Segna pagato
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
-    </CollapsibleSection>
+    <>
+      {installments.length > 0 && (
+        <CollapsibleSection title={`Rate in corso (${installments.length})`}>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Rate non ancora saldate — segnale pagate a mano quando arriva l&apos;addebito reale.
+            </p>
+            {installments.map((schedule) => (
+              <PendingScheduleCard
+                key={schedule.id}
+                schedule={schedule}
+                disabled={markPaid.isPending}
+                onMarkPaid={() => markPaid.mutate({ id: schedule.id })}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+      {cardCharges.length > 0 && (
+        <CollapsibleSection title={`Carta di credito in attesa (${cardCharges.length})`}>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Acquisti non ancora fatturati — verranno saldati da soli alla data di addebito, nessuna azione
+              richiesta (il pulsante serve solo se sai già che è avvenuto prima del previsto).
+            </p>
+            {cardCharges.map((schedule) => (
+              <PendingScheduleCard
+                key={schedule.id}
+                schedule={schedule}
+                disabled={markPaid.isPending}
+                onMarkPaid={() => markPaid.mutate({ id: schedule.id })}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+    </>
   );
 }
 

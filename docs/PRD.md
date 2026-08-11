@@ -806,3 +806,15 @@ lo scaffolding iniziale (vedi README.md per il dettaglio):
     mostra anche rate/addebiti carta saldati in questo periodo anche se la
     spesa che li ha generati è stata decisa in un periodo precedente.
     Sola lettura.
+* **Addebiti carta di credito, saldo automatico** (sezione 6): senza
+  un'integrazione bancaria (Fase 5, non fatta), un addebito carta scaduto
+  non veniva mai riconciliato finché l'utente non cliccava manualmente
+  "Segna pagato" — rischiando di gonfiare "Saldo conti"/"Disponibile" se
+  se ne scordava. `settleOverdueCardCharges` (`server/settleOverdueCardCharges.ts`)
+  salda da sola, ad ogni lettura di saldi/impegni, ogni addebito carta (non a
+  rate) la cui data di fatturazione è già passata — stesso effetto di
+  "Segna pagato", nessuna azione richiesta. Le rate restano invece a saldo
+  **manuale**, per scelta esplicita dell'utente (potrebbero non coincidere
+  con l'addebito reale). "Impegni futuri" è per questo diviso in due liste
+  indipendenti: "Rate in corso" (manuale) e "Carta di credito in attesa"
+  (solo le non ancora scadute, dato che quelle scadute si saldano da sole).
