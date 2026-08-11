@@ -77,20 +77,29 @@ model User {
 
 model Account {
   // A financial instrument (PRD section 4): conto corrente, carta, PayPal, contanti...
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  name           String
-  type           String   @db.VarChar(20) // AccountType, see lib/domain/enums.ts
-  currency       String   @default("EUR")
-  openingBalance Decimal  @default(0) @db.Decimal(12, 2)
-  archived       Boolean  @default(false)
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name              String
+  type              String   @db.VarChar(20) // AccountType, see lib/domain/enums.ts
+  currency          String   @default("EUR")
+  openingBalance    Decimal  @default(0) @db.Decimal(12, 2)
+  archived          Boolean  @default(false)
   // Solo per type = CREDIT_CARD (PRD sezione 6): il giorno del mese in cui
   // l'estratto conto genera l'addebito reale. Un acquisto con carta crea una
   // PaymentSchedule PENDING a questa data, non un CashMovement immediato —
   // vedi server/routers/expense.ts e paymentSchedule.ts.
-  statementDay   Int?
-  createdAt      DateTime @default(now())
+  statementDay      Int?
+  // Alcuni "conti" non sono soldi tuoi in senso stretto (es. ticket pasto
+  // elettronici, altri benefit): spendibili, ma non riducono la tua
+  // liquidità reale né vanno considerati un impegno sul budget mensile.
+  // Restano comunque visibili in "Saldo conti" e le spese pagate da qui
+  // contano comunque nelle statistiche per categoria (Rule 4, sempre
+  // Expense-based) — escluso solo da "Disponibile" e "Budget"
+  // (dashboard.ts). Falso per tutti gli altri conti (conto corrente, carta,
+  // PayPal, Satispay, contanti...).
+  excludeFromTotals Boolean  @default(false)
+  createdAt         DateTime @default(now())
 
   paymentPlans       PaymentPlan[]
   cashMovements      CashMovement[]

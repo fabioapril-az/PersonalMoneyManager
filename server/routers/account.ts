@@ -15,6 +15,9 @@ const createAccountSchema = z
     // Obbligatorio solo per le carte di credito (PRD sezione 6) — vedi la
     // validazione sotto e il commento su Account.statementDay in schema.prisma.
     statementDay: statementDaySchema.optional(),
+    // Ticket pasto e benefit simili: spendibili ma non "soldi tuoi" — vedi
+    // il commento su Account.excludeFromTotals in schema.prisma.
+    excludeFromTotals: z.boolean().default(false),
   })
   .refine((data) => data.type !== "CREDIT_CARD" || data.statementDay != null, {
     message: "Le carte di credito richiedono il giorno di fatturazione (1-31).",
@@ -28,6 +31,7 @@ const updateAccountSchema = z.object({
   currency: z.string().trim().min(1).max(10).optional(),
   openingBalance: z.number().finite().optional(),
   statementDay: statementDaySchema.nullable().optional(),
+  excludeFromTotals: z.boolean().optional(),
 });
 
 export const accountRouter = router({

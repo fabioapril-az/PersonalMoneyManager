@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
@@ -28,8 +29,28 @@ type AccountListItem = {
   balance: unknown;
   openingBalance: unknown;
   statementDay: number | null;
+  excludeFromTotals: boolean;
   archived: boolean;
 };
+
+// Ticket pasto e benefit simili (spendibili, ma non "soldi tuoi") — vedi il
+// commento su Account.excludeFromTotals in schema.prisma.
+function ExcludeFromTotalsField({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
+        <Label htmlFor={id} className="font-normal">
+          Non conta come liquidità reale
+        </Label>
+      </div>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Per benefit come i ticket pasto: le spese restano visibili per categoria, ma questo conto non entra in
+        &quot;Disponibile&quot; né nel Budget mensile.
+      </p>
+    </div>
+  );
+}
 
 function AccountTypeSelect({ value, onChange, id }: { value: AccountType; onChange: (v: AccountType) => void; id: string }) {
   return (
@@ -80,6 +101,7 @@ function AccountRow({ account }: { account: AccountListItem }) {
   const [type, setType] = useState<AccountType>(account.type as AccountType);
   const [openingBalance, setOpeningBalance] = useState(String(Number(account.openingBalance)));
   const [statementDay, setStatementDay] = useState(account.statementDay != null ? String(account.statementDay) : "");
+  const [excludeFromTotals, setExcludeFromTotals] = useState(account.excludeFromTotals);
 
   const updateAccount = trpc.account.update.useMutation({
     onSuccess: () => {
@@ -116,6 +138,7 @@ function AccountRow({ account }: { account: AccountListItem }) {
       type,
       openingBalance: parsedBalance,
       statementDay: type === "CREDIT_CARD" ? Number(statementDay) : null,
+      excludeFromTotals,
     });
   }
 
@@ -128,6 +151,7 @@ function AccountRow({ account }: { account: AccountListItem }) {
               <p className="truncate font-medium text-zinc-950 dark:text-zinc-50">{account.name}</p>
               <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
                 {ACCOUNT_TYPE_LABELS[account.type as AccountType]} · {currencyFormatter.format(Number(account.balance))}
+                {account.excludeFromTotals && " · non conta come liquidità"}
                 {account.archived && " · Archiviato"}
               </p>
             </button>
@@ -161,6 +185,11 @@ function AccountRow({ account }: { account: AccountListItem }) {
                 Il saldo mostrato nella lista è questo valore + le spese/entrate registrate da allora.
               </p>
             </div>
+            <ExcludeFromTotalsField
+              id="edit-account-exclude"
+              checked={excludeFromTotals}
+              onChange={setExcludeFromTotals}
+            />
             <DialogFooter>
               <Button type="submit" disabled={updateAccount.isPending}>
                 {updateAccount.isPending ? "Salvataggio…" : "Salva"}
@@ -191,6 +220,7 @@ export function AccountsManager() {
   const [type, setType] = useState<AccountType>("CHECKING");
   const [openingBalance, setOpeningBalance] = useState("0");
   const [statementDay, setStatementDay] = useState("");
+  const [excludeFromTotals, setExcludeFromTotals] = useState(false);
 
   const createAccount = trpc.account.create.useMutation({
     onSuccess: () => {
@@ -202,6 +232,7 @@ export function AccountsManager() {
       setType("CHECKING");
       setOpeningBalance("0");
       setStatementDay("");
+      setExcludeFromTotals(false);
     },
     onError: (error) => toast.error(error.message || "Impossibile creare il conto."),
   });
@@ -222,6 +253,7 @@ export function AccountsManager() {
       type,
       openingBalance: parsedBalance,
       statementDay: type === "CREDIT_CARD" ? Number(statementDay) : undefined,
+      excludeFromTotals,
     });
   }
 
@@ -256,6 +288,11 @@ export function AccountsManager() {
                   onChange={(e) => setOpeningBalance(e.target.value)}
                 />
               </div>
+              <ExcludeFromTotalsField
+                id="account-exclude"
+                checked={excludeFromTotals}
+                onChange={setExcludeFromTotals}
+              />
               <DialogFooter>
                 <Button type="submit" disabled={createAccount.isPending}>
                   {createAccount.isPending ? "Creazione…" : "Crea conto"}

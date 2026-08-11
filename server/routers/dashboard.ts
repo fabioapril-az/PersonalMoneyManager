@@ -27,11 +27,12 @@ export const dashboardRouter = router({
       // Per il Budget, non per "Spese" — vedi sotto. Conta per data di
       // SCADENZA, non per status: una rata/addebito ancora PENDING ma
       // dovuto in questo periodo impegna comunque il budget del periodo,
-      // indipendentemente da quando la segni pagata a mano.
+      // indipendentemente da quando la segni pagata a mano. Escluse le
+      // scadenze di conti "non soldi tuoi" (ticket pasto, ecc.).
       ctx.prisma.paymentSchedule.findMany({
         where: {
           dueDate: { gte: period.start, lte: period.end },
-          paymentPlan: { expense: { userId: ctx.userId } },
+          paymentPlan: { expense: { userId: ctx.userId }, account: { excludeFromTotals: false } },
         },
         select: { amount: true },
       }),
@@ -52,13 +53,14 @@ export const dashboardRouter = router({
     // (l'unica sua PaymentSchedule scade lo stesso giorno).
     const budgetSpent = schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0));
 
-    // Liquidità reale disponibile: somma dei saldi dei conti attivi.
+    // Liquidità reale disponibile: somma dei saldi dei conti attivi e "reali"
+    // (non ticket pasto/benefit, vedi Account.excludeFromTotals).
     // Deliberatamente NON "saldo - spese": le spese già pagate hanno già
     // abbassato il saldo del conto tramite il loro CashMovement (Rule 5) —
     // sottrarle di nuovo qui le conterebbe due volte (Rule 1). I conti
     // archiviati non contano: non sono più liquidità operativa.
     const available = accounts
-      .filter((account) => !account.archived)
+      .filter((account) => !account.archived && !account.excludeFromTotals)
       .reduce((sum, account) => sum.plus(account.balance), new Prisma.Decimal(0));
 
     return {
