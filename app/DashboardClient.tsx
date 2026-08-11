@@ -78,7 +78,7 @@ function PendingSchedulesSection() {
     <div className="flex flex-col gap-2">
       <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Impegni futuri</h2>
       <p className="text-xs text-zinc-400 dark:text-zinc-500">
-        Addebiti carta non ancora avvenuti — non contano ancora sul saldo del conto.
+        Addebiti carta e rate non ancora avvenuti — non contano ancora sul saldo del conto.
       </p>
       {pending.map((schedule) => (
         <Card key={schedule.id} className="flex flex-row items-center justify-between gap-2 p-3">
@@ -86,6 +86,8 @@ function PendingSchedulesSection() {
             <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
               {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
               {schedule.paymentPlan.expense.description}
+              {schedule.paymentPlan.type === "INSTALLMENTS" &&
+                ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
             </p>
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
               {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}

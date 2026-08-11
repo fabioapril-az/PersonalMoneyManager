@@ -15,7 +15,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { computeCardStatementDate } from "@/lib/domain/creditCard";
+import { splitIntoInstallments } from "@/lib/domain/installments";
 
 const statementDateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
 
@@ -54,6 +56,8 @@ export function NewExpenseDialog() {
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(todayInputValue());
   const [notes, setNotes] = useState("");
+  const [isInstallments, setIsInstallments] = useState(false);
+  const [installments, setInstallments] = useState("3");
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -64,9 +68,18 @@ export function NewExpenseDialog() {
   const categoryItems = Object.fromEntries(categoryOptions.map((o) => [o.id, o.label]));
   const accountItems = Object.fromEntries(activeAccounts.map((a) => [a.id, a.name]));
   const selectedAccount = activeAccounts.find((a) => a.id === accountId);
+  // Le rate prevalgono sulla logica "carta di credito" (vedi
+  // server/routers/expense.ts) — l'anteprima estratto conto ha senso solo
+  // se NON è a rate.
   const statementPreview =
-    selectedAccount?.type === "CREDIT_CARD" && selectedAccount.statementDay != null
+    !isInstallments && selectedAccount?.type === "CREDIT_CARD" && selectedAccount.statementDay != null
       ? computeCardStatementDate(new Date(date), selectedAccount.statementDay)
+      : null;
+  const parsedAmountPreview = Number(amount.replace(",", "."));
+  const parsedInstallmentsPreview = Number(installments);
+  const installmentAmounts =
+    isInstallments && Number.isFinite(parsedAmountPreview) && parsedAmountPreview > 0 && parsedInstallmentsPreview >= 2
+      ? splitIntoInstallments(parsedAmountPreview, parsedInstallmentsPreview)
       : null;
 
   const createExpense = trpc.expense.create.useMutation({
@@ -86,6 +99,8 @@ export function NewExpenseDialog() {
     setDescription("");
     setDate(todayInputValue());
     setNotes("");
+    setIsInstallments(false);
+    setInstallments("3");
     setOpen(false);
   }
 
@@ -100,6 +115,11 @@ export function NewExpenseDialog() {
       toast.error("Seleziona categoria e metodo di pagamento.");
       return;
     }
+    const parsedInstallments = Number(installments);
+    if (isInstallments && (!Number.isInteger(parsedInstallments) || parsedInstallments < 2)) {
+      toast.error("Il numero di rate deve essere almeno 2.");
+      return;
+    }
 
     createExpense.mutate({
       amount: parsedAmount,
@@ -108,6 +128,7 @@ export function NewExpenseDialog() {
       description,
       date: new Date(date),
       notes: notes || undefined,
+      installments: isInstallments ? parsedInstallments : undefined,
     });
   }
 
@@ -193,6 +214,39 @@ export function NewExpenseDialog() {
             <Label htmlFor="expense-notes">Note (opzionale)</Label>
             <Input id="expense-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="group/field flex items-center gap-2">
+            <Checkbox
+              id="expense-installments-toggle"
+              checked={isInstallments}
+              onCheckedChange={(checked) => setIsInstallments(checked === true)}
+            />
+            <Label htmlFor="expense-installments-toggle" className="font-normal">
+              Pagamento a rate
+            </Label>
+          </div>
+          {isInstallments && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-installments-count">Numero di rate</Label>
+              <Input
+                id="expense-installments-count"
+                type="number"
+                min={2}
+                max={60}
+                value={installments}
+                onChange={(e) => setInstallments(e.target.value)}
+                required
+              />
+              {installmentAmounts && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {installmentAmounts.length} rate: la 1ª (
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(
+                    installmentAmounts[0]
+                  )}
+                  ) pagata subito, le altre mensili — la trovi in &quot;Impegni futuri&quot;.
+                </p>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={createExpense.isPending}>
               {createExpense.isPending ? "Registrazione…" : "Registra spesa"}

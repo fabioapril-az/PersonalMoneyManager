@@ -3,9 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../trpc";
 
 export const paymentScheduleRouter = router({
-  // "Impegni futuri" (PRD sezione 11): scadenze non ancora avvenute — oggi
-  // solo addebiti carta di credito (le rate multiple sono ancora Fase 2 non
-  // implementata, ma useranno la stessa PaymentSchedule).
+  // "Impegni futuri" (PRD sezione 11): scadenze non ancora avvenute —
+  // addebiti carta di credito e rate successive alla prima.
   listPending: protectedProcedure.query(({ ctx }) =>
     ctx.prisma.paymentSchedule.findMany({
       where: { status: "PENDING", paymentPlan: { expense: { userId: ctx.userId } } },
@@ -21,9 +20,9 @@ export const paymentScheduleRouter = router({
     })
   ),
 
-  // Il momento in cui l'acquisto diventa un vero movimento di denaro (PRD
-  // sezione 6: "Cash Movement, quando avviene realmente"). Crea il
-  // CashMovement solo ora, alla data della scadenza — mai all'acquisto.
+  // Il momento in cui l'acquisto (o la rata) diventa un vero movimento di
+  // denaro (PRD sezione 6: "Cash Movement, quando avviene realmente"). Crea
+  // il CashMovement solo ora, alla data della scadenza — mai all'acquisto.
   markPaid: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
     const schedule = await ctx.prisma.paymentSchedule.findFirst({
       where: { id: input.id, paymentPlan: { expense: { userId: ctx.userId } } },
@@ -42,7 +41,7 @@ export const paymentScheduleRouter = router({
           accountId: schedule.paymentPlan.accountId,
           date: schedule.dueDate,
           amount: schedule.amount.negated(), // signed: money out
-          type: "CARD_CHARGE",
+          type: schedule.paymentPlan.type === "INSTALLMENTS" ? "INSTALLMENT_PAYMENT" : "CARD_CHARGE",
           status: "EXECUTED",
           description: schedule.paymentPlan.expense.description,
           paymentScheduleId: schedule.id,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { computeCardStatementDate } from "@/lib/domain/creditCard";
+import { computeInstallmentDueDate, splitIntoInstallments } from "@/lib/domain/installments";
 import { protectedProcedure, router } from "../trpc";
 
 const createExpenseSchema = z.object({
@@ -11,6 +12,9 @@ const createExpenseSchema = z.object({
   accountId: z.string().min(1, "Seleziona un metodo di pagamento."),
   description: z.string().trim().min(1, "Aggiungi una breve descrizione.").max(120),
   notes: z.string().trim().max(500).optional(),
+  // Rate (PRD sezione 7): qualunque spesa, su qualunque conto. Se presente
+  // e > 1, prevale sulla logica "carta di credito" — vedi createExpenseChain.
+  installments: z.number().int().min(2).max(60).optional(),
 });
 
 const updateExpenseSchema = createExpenseSchema.extend({ id: z.string() });
@@ -26,17 +30,17 @@ export const expenseRouter = router({
   }),
 
   // L'inserimento rapido (PRD sezione 13): Importo, Categoria, Conto,
-  // Descrizione. Rate sono ancora Fase 2 non implementata — qui il Payment
-  // Plan è sempre a rata unica. Ma il TIPO di rata dipende dal conto:
+  // Descrizione, + Rate opzionale. Il TIPO di Payment Plan dipende da conto
+  // e scelta rate:
   //
-  //   - Conti "immediati" (C/C, PayPal, contanti, altro): PaymentPlan
-  //     IMMEDIATE, PaymentSchedule PAID, CashMovement creato subito — i
-  //     soldi escono ora.
-  //   - Carta di credito (PRD sezione 6): PaymentPlan CREDIT_CARD,
-  //     PaymentSchedule PENDING alla data del vero estratto conto, NESSUN
-  //     CashMovement ora. Il movimento reale arriva quando la scadenza
-  //     viene saldata (paymentSchedule.markPaid) — "impegni futuri" nel
-  //     frattempo la mostra come non ancora avvenuta.
+  //   - Rate scelte (qualunque conto): PaymentPlan INSTALLMENTS, N
+  //     PaymentSchedule mensili dalla data d'acquisto (PRD sezione 7). La
+  //     1a è pagata subito (CashMovement immediato), le altre PENDING.
+  //   - Nessuna rata, carta di credito (PRD sezione 6): PaymentPlan
+  //     CREDIT_CARD, 1 PaymentSchedule PENDING alla data del vero estratto
+  //     conto, nessun CashMovement finché non viene saldata.
+  //   - Nessuna rata, conto "immediato" (C/C, PayPal, contanti, altro):
+  //     PaymentPlan IMMEDIATE, PaymentSchedule PAID, CashMovement subito.
   //
   // Sempre in una sola transazione: se una parte fallisce, non deve restare
   // nessun pezzo a metà (Rule 1).
@@ -47,7 +51,7 @@ export const expenseRouter = router({
     ]);
     if (!category) throw new TRPCError({ code: "NOT_FOUND", message: "Categoria non trovata." });
     if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Conto non trovato." });
-    assertCreditCardIsConfigured(account);
+    assertCreditCardIsConfigured(account, input.installments);
 
     return ctx.prisma.$transaction((tx) => createExpenseChain(tx, ctx.userId, input, account));
   }),
@@ -56,8 +60,11 @@ export const expenseRouter = router({
   // PaymentPlan -> PaymentSchedule -> CashMovement, se esiste) e ricreala
   // con i nuovi valori, nella stessa transazione. Più semplice e meno
   // rischioso di aggiornare 4 tabelle in parallelo mantenendole coerenti a
-  // mano — e riusa esattamente la stessa logica di create per decidere se
-  // il risultato è una scadenza pagata subito o in attesa.
+  // mano — e riusa esattamente la stessa logica di create.
+  //
+  // Nota: se alcune rate erano già state segnate come pagate, modificare la
+  // spesa le ricrea da zero (di nuovo tutte in attesa tranne la prima) — non
+  // tiene traccia dei pagamenti già fatti sul piano precedente.
   update: protectedProcedure.input(updateExpenseSchema).mutation(async ({ ctx, input }) => {
     const existing = await ctx.prisma.expense.findFirst({ where: { id: input.id, userId: ctx.userId } });
     if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
@@ -68,7 +75,7 @@ export const expenseRouter = router({
     ]);
     if (!category) throw new TRPCError({ code: "NOT_FOUND", message: "Categoria non trovata." });
     if (!account) throw new TRPCError({ code: "NOT_FOUND", message: "Conto non trovato." });
-    assertCreditCardIsConfigured(account);
+    assertCreditCardIsConfigured(account, input.installments);
 
     return ctx.prisma.$transaction(async (tx) => {
       await deleteExpenseChain(tx, input.id);
@@ -94,15 +101,18 @@ type ExpenseInput = {
   accountId: string;
   description: string;
   notes?: string;
+  installments?: number;
 };
 
 type AccountForExpense = { type: string; statementDay: number | null; name: string };
 
 // Le carte di credito esistenti create prima di questa feature non hanno
 // ancora un giorno di fatturazione — messaggio chiaro invece di un crash o
-// di un fallback silenzioso e sbagliato.
-function assertCreditCardIsConfigured(account: AccountForExpense) {
-  if (account.type === "CREDIT_CARD" && account.statementDay == null) {
+// di un fallback silenzioso e sbagliato. Non serve se la spesa è a rate: in
+// quel caso non si usa affatto lo scadenzario della carta (vedi sopra).
+function assertCreditCardIsConfigured(account: AccountForExpense, installments?: number) {
+  const isInstallments = installments != null && installments > 1;
+  if (!isInstallments && account.type === "CREDIT_CARD" && account.statementDay == null) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: `Configura il giorno di fatturazione di "${account.name}" (vai su Conti) prima di registrare una spesa con questa carta.`,
@@ -127,17 +137,52 @@ async function createExpenseChain(tx: any, userId: string, input: ExpenseInput, 
     },
   });
 
-  const isCreditCard = account.type === "CREDIT_CARD";
+  const isInstallments = input.installments != null && input.installments > 1;
+  const isCreditCard = !isInstallments && account.type === "CREDIT_CARD";
 
   const paymentPlan = await tx.paymentPlan.create({
     data: {
       expenseId: expense.id,
-      type: isCreditCard ? "CREDIT_CARD" : "IMMEDIATE",
+      type: isInstallments ? "INSTALLMENTS" : isCreditCard ? "CREDIT_CARD" : "IMMEDIATE",
       accountId: input.accountId,
-      installmentsCount: 1,
+      installmentsCount: isInstallments ? input.installments : 1,
       startDate: input.date,
     },
   });
+
+  if (isInstallments) {
+    const amounts = splitIntoInstallments(input.amount, input.installments as number);
+    for (let i = 0; i < amounts.length; i++) {
+      const installmentNo = i + 1;
+      const isFirst = installmentNo === 1;
+      const schedule = await tx.paymentSchedule.create({
+        data: {
+          paymentPlanId: paymentPlan.id,
+          dueDate: computeInstallmentDueDate(input.date, installmentNo),
+          amount: amounts[i],
+          status: isFirst ? "PAID" : "PENDING",
+          installmentNo,
+        },
+      });
+
+      // Solo la prima rata è un movimento reale ora — le altre restano in
+      // attesa (Impegni futuri) finché non vengono saldate (paymentSchedule.markPaid).
+      if (isFirst) {
+        await tx.cashMovement.create({
+          data: {
+            accountId: input.accountId,
+            date: input.date,
+            amount: -amounts[i],
+            type: "INSTALLMENT_PAYMENT",
+            status: "EXECUTED",
+            description: input.description,
+            paymentScheduleId: schedule.id,
+          },
+        });
+      }
+    }
+    return expense;
+  }
 
   const dueDate = isCreditCard ? computeCardStatementDate(input.date, account.statementDay as number) : input.date;
 

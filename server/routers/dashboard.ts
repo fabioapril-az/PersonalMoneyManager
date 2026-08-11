@@ -19,8 +19,9 @@ export const dashboardRouter = router({
       ctx.prisma.expense.findMany({
         where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
         // Stesso motivo: l'account "vero" di un'Expense vive nel suo
-        // PaymentPlan, non sull'Expense stessa.
-        include: { category: true, paymentPlan: { select: { accountId: true } } },
+        // PaymentPlan, non sull'Expense stessa. installmentsCount serve per
+        // pre-compilare il form di modifica se la spesa è a rate.
+        include: { category: true, paymentPlan: { select: { accountId: true, installmentsCount: true } } },
         orderBy: { date: "desc" },
       }),
       listAccountsWithBalance(ctx.prisma, ctx.userId),

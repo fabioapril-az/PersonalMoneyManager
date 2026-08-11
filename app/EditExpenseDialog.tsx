@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function toDateInputValue(date: Date | string) {
   return new Date(date).toISOString().slice(0, 10);
@@ -35,7 +36,7 @@ export type EditableExpense = {
   description: string;
   date: string | Date;
   notes: string | null;
-  paymentPlan: { accountId: string } | null;
+  paymentPlan: { accountId: string; installmentsCount: number | null } | null;
 };
 
 export function EditExpenseDialog({
@@ -62,6 +63,9 @@ export function EditExpenseDialog({
   const [description, setDescription] = useState(() => expense?.description ?? "");
   const [date, setDate] = useState(() => (expense ? toDateInputValue(expense.date) : ""));
   const [notes, setNotes] = useState(() => expense?.notes ?? "");
+  const initialInstallmentsCount = expense?.paymentPlan?.installmentsCount ?? 1;
+  const [isInstallments, setIsInstallments] = useState(() => initialInstallmentsCount > 1);
+  const [installments, setInstallments] = useState(() => String(Math.max(initialInstallmentsCount, 2)));
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -105,6 +109,11 @@ export function EditExpenseDialog({
       toast.error("Seleziona categoria e metodo di pagamento.");
       return;
     }
+    const parsedInstallments = Number(installments);
+    if (isInstallments && (!Number.isInteger(parsedInstallments) || parsedInstallments < 2)) {
+      toast.error("Il numero di rate deve essere almeno 2.");
+      return;
+    }
 
     updateExpense.mutate({
       id: expense.id,
@@ -114,6 +123,7 @@ export function EditExpenseDialog({
       description,
       date: new Date(date),
       notes: notes || undefined,
+      installments: isInstallments ? parsedInstallments : undefined,
     });
   }
 
@@ -175,6 +185,34 @@ export function EditExpenseDialog({
             <Label htmlFor="edit-expense-notes">Note (opzionale)</Label>
             <Input id="edit-expense-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="edit-expense-installments-toggle"
+              checked={isInstallments}
+              onCheckedChange={(checked) => setIsInstallments(checked === true)}
+            />
+            <Label htmlFor="edit-expense-installments-toggle" className="font-normal">
+              Pagamento a rate
+            </Label>
+          </div>
+          {isInstallments && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-installments-count">Numero di rate</Label>
+              <Input
+                id="edit-expense-installments-count"
+                type="number"
+                min={2}
+                max={60}
+                value={installments}
+                onChange={(e) => setInstallments(e.target.value)}
+                required
+              />
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Attenzione: modificando la spesa, il piano rate viene ricreato da zero — eventuali rate già
+                segnate come pagate tornano in attesa (tranne la prima).
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={updateExpense.isPending}>
               {updateExpense.isPending ? "Salvataggio…" : "Salva"}
