@@ -98,7 +98,7 @@ function BudgetBreakdownSection({ lines }: { lines: BudgetLineItem[] }) {
   if (lines.length === 0) return null;
 
   return (
-    <CollapsibleSection title={`Cosa concorre al Budget (${lines.length})`}>
+    <CollapsibleSection title={`Cosa concorre al Budget (${lines.length})`} defaultOpen>
       <div className="flex flex-col gap-2">
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
@@ -404,42 +404,11 @@ export function DashboardClient() {
         </div>
       </CollapsibleSection>
 
-      {/* Sotto Budget va tutto ciò che concorre al suo valore: prima il
-          dettaglio riga-per-riga (BudgetBreakdownSection, la risposta diretta
-          a "cosa lo consuma"), poi le sezioni più generali da cui quelle
-          righe provengono (Impegni futuri, Movimenti di cassa, Spese e
-          entrate) per chi vuole più contesto. */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
-          <Link href="/budget" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400">
-            {budgetAmount != null ? "Gestisci" : "Imposta"}
-          </Link>
-        </div>
-        {budgetAmount == null ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Nessun budget impostato — vai su &quot;Budget&quot; per definirne uno.
-          </p>
-        ) : (
-          <Card className="flex flex-col gap-1 p-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-zinc-800 dark:text-zinc-200">Speso / Budget</span>
-              <span className="text-zinc-500 dark:text-zinc-400">
-                {formatAmount(budgetSpent)} / {formatAmount(budgetAmount)}
-              </span>
-            </div>
-            <BudgetBar percentUsed={budgetPercentUsed} />
-          </Card>
-        )}
-      </div>
-
-      <BudgetBreakdownSection lines={budgetLines} />
-
       <PendingSchedulesSection />
 
       <CashMovementsSection movements={cashMovements} />
 
-      <CollapsibleSection title="Spese e entrate" defaultOpen>
+      <CollapsibleSection title="Spese e entrate">
         <div className="flex flex-col gap-2">
           <p className="text-xs text-zinc-400 dark:text-zinc-500">
             Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
@@ -480,6 +449,36 @@ export function DashboardClient() {
           ))}
         </div>
       </CollapsibleSection>
+
+      {/* Budget in fondo, con il suo dettaglio riga-per-riga espanso di
+          default (BudgetBreakdownSection) — tutto ciò da cui quelle righe
+          provengono (Impegni futuri, Movimenti di cassa, Spese e entrate) è
+          già stato mostrato sopra, per chi vuole più contesto prima. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
+          <Link href="/budget" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400">
+            {budgetAmount != null ? "Gestisci" : "Imposta"}
+          </Link>
+        </div>
+        {budgetAmount == null ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Nessun budget impostato — vai su &quot;Budget&quot; per definirne uno.
+          </p>
+        ) : (
+          <Card className="flex flex-col gap-1 p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-800 dark:text-zinc-200">Speso / Budget</span>
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {formatAmount(budgetSpent)} / {formatAmount(budgetAmount)}
+              </span>
+            </div>
+            <BudgetBar percentUsed={budgetPercentUsed} />
+          </Card>
+        )}
+      </div>
+
+      <BudgetBreakdownSection lines={budgetLines} />
 
       <EditExpenseDialog
         key={editingExpense?.id ?? "none"}
