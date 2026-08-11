@@ -54,6 +54,16 @@ Due conseguenze tecniche di questa scelta, non ovvie:
    prevedibili" sulla richiesta che innesca il risveglio. `lib/prisma.ts`
    avvolge ogni query con un retry automatico (`lib/db/azureSqlRetry.ts`,
    3 tentativi) proprio per questo scenario.
+3. **Un unique index su una colonna nullable ammette una sola riga NULL in
+   tutta la tabella** (Postgres invece non considera mai due NULL come
+   duplicati). `CashMovement.paymentScheduleId` è NULL per ogni Income e
+   Transfer — con un `@unique` su quel campo, il *secondo* Income/Transfer
+   mai creato falliva con "Unique constraint failed". Prisma non ha ancora
+   sintassi per un filtered index (l'unico fix corretto su SQL Server), quindi
+   `@unique` è stato tolto e la relazione con `PaymentSchedule` è diventata
+   1-a-molti invece di 1-a-1 (vedi il commento su `PaymentSchedule.cashMovements`
+   in `schema.prisma`); "un solo CashMovement per schedule" resta garantito
+   solo a livello applicativo.
 
 `prisma/schema.prisma` ha inoltre ogni relazione con `onDelete`/`onUpdate`
 **espliciti**: SQL Server rifiuta una migrazione se una tabella è

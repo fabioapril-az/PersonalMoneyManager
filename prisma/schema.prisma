@@ -225,7 +225,16 @@ model PaymentSchedule {
   status        String      @default("PENDING") @db.VarChar(20) // ScheduleStatus, see lib/domain/enums.ts
   installmentNo Int? // e.g. 1 of 3
 
-  cashMovement CashMovement?
+  // To-many, not the more natural 1:1, purely because of a SQL Server quirk:
+  // a plain unique index on CashMovement.paymentScheduleId allows only ONE
+  // NULL row in the whole table (unlike Postgres, where NULLs are never
+  // considered duplicates) — and paymentScheduleId is NULL on every Income
+  // and Transfer CashMovement, of which there are many. Prisma has no schema
+  // syntax for a SQL Server *filtered* unique index (the real fix) as of
+  // this writing, so @unique is dropped here instead and "exactly one
+  // CashMovement per schedule" is enforced in application code (every
+  // creation path checks PaymentSchedule.status === "PENDING" first).
+  cashMovements CashMovement[]
 
   createdAt DateTime @default(now())
 
@@ -249,8 +258,9 @@ model CashMovement {
   // Set when this movement is the real-world settlement of a schedule
   // (e.g. the credit card statement charge for a purchase or installment).
   // NoAction on purpose: a PaymentSchedule that already has a real
-  // CashMovement against it must not be deletable.
-  paymentScheduleId String?          @unique
+  // CashMovement against it must not be deletable. Not @unique — see the
+  // comment on PaymentSchedule.cashMovements for why.
+  paymentScheduleId String?
   paymentSchedule   PaymentSchedule? @relation(fields: [paymentScheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   // Set when this movement is an Income being credited to an account.
@@ -265,6 +275,7 @@ model CashMovement {
 
   @@index([accountId, date])
   @@index([transferGroupId])
+  @@index([paymentScheduleId])
 }
 
 model RecurringTemplate {
