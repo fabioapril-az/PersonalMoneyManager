@@ -55,12 +55,22 @@ export const dashboardRouter = router({
         // carta di credito NON sono qui: contano alla data d'acquisto,
         // insieme a quelle a pagamento immediato — vedi budgetSpent sotto.
         // Escluse le scadenze di conti "non soldi tuoi" (ticket pasto, ecc.).
+        // L'include serve solo a costruire budgetLines (il dettaglio "cosa
+        // concorre al budget"), non al totale in sé.
         ctx.prisma.paymentSchedule.findMany({
           where: {
             dueDate: { gte: period.start, lte: period.end },
             paymentPlan: { type: "INSTALLMENTS", expense: { userId: ctx.userId }, account: { excludeFromTotals: false } },
           },
-          select: { amount: true },
+          include: {
+            paymentPlan: {
+              select: {
+                installmentsCount: true,
+                account: { select: { name: true } },
+                expense: { select: { description: true, category: { select: { icon: true, name: true } } } },
+              },
+            },
+          },
         }),
         // "Movimenti di cassa" (PRD Rule 5): cosa è successo DAVVERO sui
         // conti in questo periodo, per data di CashMovement — non di
@@ -104,10 +114,41 @@ export const dashboardRouter = router({
       //   le rate appartenenti al periodo"): pesano alla data di SCADENZA di
       //   ogni singola rata, una alla volta — non tutto l'importo in un
       //   colpo sul mese dell'acquisto.
-      const budgetSpent = expenses
-        .filter((e) => e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals)
+      const budgetExpenses = expenses.filter(
+        (e) => e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals
+      );
+      const budgetSpent = budgetExpenses
         .reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0))
         .plus(schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0)));
+
+      // Dettaglio "cosa concorre al budget" — stessa identica selezione di
+      // budgetSpent sopra, riga per riga invece che sommata, perché capire
+      // "cosa" lo consuma non era ovvio guardando Spese e entrate (mostra
+      // l'importo intero di una spesa a rate, non la singola rata) o
+      // Impegni futuri/Movimenti di cassa (mescolano scadenze future non
+      // ancora del periodo, trasferimenti, entrate, ecc.).
+      const budgetLines = [
+        ...budgetExpenses.map((e) => ({
+          id: e.id,
+          date: e.date,
+          description: e.description,
+          categoryIcon: e.category.icon,
+          categoryName: e.category.name,
+          accountName: e.paymentPlan?.account.name ?? null,
+          amount: e.amount,
+          installment: null as { no: number | null; count: number | null } | null,
+        })),
+        ...schedulesDueInPeriod.map((s) => ({
+          id: s.id,
+          date: s.dueDate,
+          description: s.paymentPlan.expense.description,
+          categoryIcon: s.paymentPlan.expense.category.icon,
+          categoryName: s.paymentPlan.expense.category.name,
+          accountName: s.paymentPlan.account.name,
+          amount: s.amount,
+          installment: { no: s.installmentNo, count: s.paymentPlan.installmentsCount },
+        })),
+      ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
       // Liquidità reale disponibile: somma dei saldi dei conti attivi e "reali"
       // (non ticket pasto/benefit, vedi Account.excludeFromTotals).
@@ -132,6 +173,7 @@ export const dashboardRouter = router({
         // impostato.
         monthlyBudget: user.monthlyBudget,
         budgetSpent,
+        budgetLines,
         accounts,
         recentExpenses: expenses.slice(0, 5),
         recentIncomes: incomes.slice(0, 5),

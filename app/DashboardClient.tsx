@@ -40,6 +40,17 @@ type CashMovementItem = {
   } | null;
 };
 
+type BudgetLineItem = {
+  id: string;
+  date: Date | string;
+  description: string;
+  categoryIcon: string | null;
+  categoryName: string;
+  accountName: string | null;
+  amount: unknown;
+  installment: { no: number | null; count: number | null } | null;
+};
+
 function BudgetBar({ percentUsed }: { percentUsed: number }) {
   const clamped = Math.min(100, Math.max(0, percentUsed));
   const overBudget = percentUsed > 100;
@@ -76,6 +87,44 @@ function CollapsibleSection({
       </button>
       {open && children}
     </div>
+  );
+}
+
+// Risponde direttamente a "cosa concorre al budget di questo mese": stessa
+// identica selezione di budgetSpent (server/routers/dashboard.ts), riga per
+// riga — una spesa a rate qui appare per la sola rata di competenza di
+// questo periodo, non per l'importo intero come in "Spese e entrate".
+function BudgetBreakdownSection({ lines }: { lines: BudgetLineItem[] }) {
+  if (lines.length === 0) return null;
+
+  return (
+    <CollapsibleSection title={`Cosa concorre al Budget (${lines.length})`}>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
+          d&apos;acquisto, rate alla loro scadenza.
+        </p>
+        {lines.map((line) => (
+          <Card key={line.id} className="flex flex-row items-center justify-between gap-2 p-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+                {line.categoryIcon ? `${line.categoryIcon} ` : ""}
+                {line.description}
+                {line.installment && ` · rata ${line.installment.no}/${line.installment.count}`}
+              </p>
+              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {line.accountName ? `${line.accountName} · ` : ""}
+                {dateFormatter.format(new Date(line.date))}
+                {line.installment ? " (scadenza)" : ""}
+              </p>
+            </div>
+            <span className="shrink-0 text-sm font-medium text-red-600 dark:text-red-400">
+              {formatAmount(-Number(line.amount))}
+            </span>
+          </Card>
+        ))}
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -226,6 +275,7 @@ export function DashboardClient() {
     available,
     monthlyBudget,
     budgetSpent,
+    budgetLines,
     accounts,
     recentExpenses,
     recentIncomes,
@@ -354,9 +404,11 @@ export function DashboardClient() {
         </div>
       </CollapsibleSection>
 
-      {/* Sotto Budget va tutto ciò che concorre al suo valore — pagamento
-          immediato/carta (Spese e entrate) e rate (Impegni futuri se ancora
-          da pagare, Movimenti di cassa quando la singola rata è saldata). */}
+      {/* Sotto Budget va tutto ciò che concorre al suo valore: prima il
+          dettaglio riga-per-riga (BudgetBreakdownSection, la risposta diretta
+          a "cosa lo consuma"), poi le sezioni più generali da cui quelle
+          righe provengono (Impegni futuri, Movimenti di cassa, Spese e
+          entrate) per chi vuole più contesto. */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
@@ -380,6 +432,8 @@ export function DashboardClient() {
           </Card>
         )}
       </div>
+
+      <BudgetBreakdownSection lines={budgetLines} />
 
       <PendingSchedulesSection />
 
