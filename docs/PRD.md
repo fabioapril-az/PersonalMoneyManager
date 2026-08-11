@@ -785,7 +785,15 @@ lo scaffolding iniziale (vedi README.md per il dettaglio):
 * **Budget** (sezione 14): un **unico tetto di spesa mensile complessivo**
   (`User.monthlyBudget`), non per categoria. Il modello `Budget` per-categoria
   resta nello schema per un eventuale uso futuro più granulare, ma non è
-  esposto dall'app oggi.
+  esposto dall'app oggi. Il momento in cui una spesa pesa sul budget è
+  **ibrido**, deciso caso per caso (vedi `budgetSpent` in
+  `server/routers/dashboard.ts`):
+  - pagamento immediato o carta di credito: alla data d'**acquisto**, stesso
+    importo e periodo di "Spese" — anche se l'addebito reale sul conto
+    (Rule 5) arriva più avanti (vedi sezione 6).
+  - a rate (sezione 7, "il budget del periodo considera solamente le rate
+    appartenenti al periodo"): alla data di **scadenza di ogni rata**, una
+    alla volta — non tutto l'importo in un colpo sul mese dell'acquisto.
 * **Dashboard, "cosa è successo davvero sui conti" (sezione 11)**: la home
   distingue esplicitamente due liste, una per Rule 4 e una per Rule 5, perché
   possono riferirsi a periodi diversi per rate/carte di credito — es. una

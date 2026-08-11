@@ -41,8 +41,9 @@ function BudgetForm({ monthlyBudget, budgetSpent }: { monthlyBudget: unknown; bu
     setBudget.mutate({ amount: null });
   }
 
-  // Segue le scadenze reali (rate/carta), non "Spese" — vedi il commento in
-  // server/routers/dashboard.ts su budgetSpent.
+  // Regola ibrida: pagamento immediato/carta pesano alla data d'acquisto
+  // (come "Spese"), le rate pesano quando ogni singola rata scade — vedi il
+  // commento su budgetSpent in server/routers/dashboard.ts.
   const spent = Number(budgetSpent);
   const budget = monthlyBudget != null ? Number(monthlyBudget) : null;
 
@@ -96,8 +97,8 @@ export function BudgetManager() {
     <div className="flex w-full max-w-sm flex-col gap-4">
       <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Budget mensile</h2>
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Un unico tetto di spesa per il periodo corrente. Segue le scadenze reali: una spesa a rate o con carta
-        di credito pesa sul budget quando la singola rata/l&apos;addebito è dovuto, non quando la registri.
+        Un unico tetto di spesa per il periodo corrente. Una spesa a pagamento immediato o con carta di credito
+        pesa quando la fai; una spesa a rate pesa una rata alla volta, quando ciascuna scade.
       </p>
 
       {isLoading || !summary ? (

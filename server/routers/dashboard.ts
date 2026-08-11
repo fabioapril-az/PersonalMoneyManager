@@ -33,22 +33,32 @@ export const dashboardRouter = router({
           // Stesso motivo: l'account "vero" di un'Expense vive nel suo
           // PaymentPlan, non sull'Expense stessa. installmentsCount serve per
           // pre-compilare il form di modifica se la spesa è a rate, e insieme
-          // al nome del conto per mostrare "come" è stata pagata.
+          // al nome del conto per mostrare "come" è stata pagata. type ed
+          // excludeFromTotals servono al calcolo di budgetSpent sotto.
           include: {
             category: true,
-            paymentPlan: { select: { accountId: true, installmentsCount: true, account: { select: { name: true } } } },
+            paymentPlan: {
+              select: {
+                accountId: true,
+                installmentsCount: true,
+                type: true,
+                account: { select: { name: true, excludeFromTotals: true } },
+              },
+            },
           },
           orderBy: { date: "desc" },
         }),
-        // Per il Budget, non per "Spese" — vedi sotto. Conta per data di
-        // SCADENZA, non per status: una rata/addebito ancora PENDING ma
-        // dovuto in questo periodo impegna comunque il budget del periodo,
-        // indipendentemente da quando la segni pagata a mano. Escluse le
-        // scadenze di conti "non soldi tuoi" (ticket pasto, ecc.).
+        // Per il Budget (rate soltanto), non per "Spese" — vedi sotto. Conta
+        // per data di SCADENZA, non per status: una rata ancora PENDING ma
+        // dovuta in questo periodo impegna comunque il budget del periodo,
+        // indipendentemente da quando la segni pagata a mano. Le spese con
+        // carta di credito NON sono qui: contano alla data d'acquisto,
+        // insieme a quelle a pagamento immediato — vedi budgetSpent sotto.
+        // Escluse le scadenze di conti "non soldi tuoi" (ticket pasto, ecc.).
         ctx.prisma.paymentSchedule.findMany({
           where: {
             dueDate: { gte: period.start, lte: period.end },
-            paymentPlan: { expense: { userId: ctx.userId }, account: { excludeFromTotals: false } },
+            paymentPlan: { type: "INSTALLMENTS", expense: { userId: ctx.userId }, account: { excludeFromTotals: false } },
           },
           select: { amount: true },
         }),
@@ -85,13 +95,19 @@ export const dashboardRouter = router({
       const totalIncome = incomes.reduce((sum, i) => sum.plus(i.amount), new Prisma.Decimal(0));
       const totalExpense = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
 
-      // "Budget" invece segue le scadenze reali (PRD sezione 7: "il budget del
-      // periodo considera solamente le rate appartenenti al periodo") — una
-      // spesa a rate o con carta di credito impegna il budget del periodo in
-      // cui la singola rata/l'addebito è dovuto, non quello dell'acquisto.
-      // Per una spesa a pagamento immediato coincide sempre con totalExpense
-      // (l'unica sua PaymentSchedule scade lo stesso giorno).
-      const budgetSpent = schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0));
+      // "Budget": regola ibrida, diversa per ciascun metodo di pagamento
+      // (deciso col confronto sul caso ristorante-con-carta):
+      // - pagamento immediato o carta di credito: pesano alla data
+      //   dell'ACQUISTO ("l'ho deciso oggi, lo sto spendendo oggi") — stesso
+      //   importo, stesso periodo di totalExpense.
+      // - a rate (PRD sezione 7: "il budget del periodo considera solamente
+      //   le rate appartenenti al periodo"): pesano alla data di SCADENZA di
+      //   ogni singola rata, una alla volta — non tutto l'importo in un
+      //   colpo sul mese dell'acquisto.
+      const budgetSpent = expenses
+        .filter((e) => e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals)
+        .reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0))
+        .plus(schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0)));
 
       // Liquidità reale disponibile: somma dei saldi dei conti attivi e "reali"
       // (non ticket pasto/benefit, vedi Account.excludeFromTotals).
