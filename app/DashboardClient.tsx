@@ -116,10 +116,21 @@ export function DashboardClient() {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
   }
 
-  const { period, totalIncome, totalExpense, available, monthlyBudget, accounts, recentExpenses, recentIncomes } =
-    data;
+  const {
+    period,
+    totalIncome,
+    totalExpense,
+    available,
+    monthlyBudget,
+    budgetSpent,
+    accounts,
+    recentExpenses,
+    recentIncomes,
+  } = data;
   const budgetAmount = monthlyBudget != null ? Number(monthlyBudget) : null;
-  const budgetPercentUsed = budgetAmount ? (Number(totalExpense) / budgetAmount) * 100 : 0;
+  // Budget segue le scadenze reali (budgetSpent), non "Spese" (totalExpense)
+  // — vedi il commento in server/routers/dashboard.ts.
+  const budgetPercentUsed = budgetAmount ? (Number(budgetSpent) / budgetAmount) * 100 : 0;
 
   const recentMovements = [
     ...recentExpenses.map((e) => ({
@@ -217,7 +228,7 @@ export function DashboardClient() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-zinc-800 dark:text-zinc-200">Speso / Budget</span>
               <span className="text-zinc-500 dark:text-zinc-400">
-                {formatAmount(totalExpense)} / {formatAmount(budgetAmount)}
+                {formatAmount(budgetSpent)} / {formatAmount(budgetAmount)}
               </span>
             </div>
             <BudgetBar percentUsed={budgetPercentUsed} />

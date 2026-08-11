@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
-function BudgetForm({ monthlyBudget, totalExpense }: { monthlyBudget: unknown; totalExpense: unknown }) {
+function BudgetForm({ monthlyBudget, budgetSpent }: { monthlyBudget: unknown; budgetSpent: unknown }) {
   const utils = trpc.useUtils();
   // Inizializzato in modo lazy da props già risolte (il genitore mostra
   // "Caricamento…" finché la query non arriva, quindi questo componente
@@ -41,7 +41,9 @@ function BudgetForm({ monthlyBudget, totalExpense }: { monthlyBudget: unknown; t
     setBudget.mutate({ amount: null });
   }
 
-  const spent = Number(totalExpense);
+  // Segue le scadenze reali (rate/carta), non "Spese" — vedi il commento in
+  // server/routers/dashboard.ts su budgetSpent.
+  const spent = Number(budgetSpent);
   const budget = monthlyBudget != null ? Number(monthlyBudget) : null;
 
   return (
@@ -94,14 +96,14 @@ export function BudgetManager() {
     <div className="flex w-full max-w-sm flex-col gap-4">
       <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Budget mensile</h2>
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Un unico tetto di spesa per il periodo corrente, confrontato con il totale delle spese registrate —
-        indipendente da quando registri le entrate.
+        Un unico tetto di spesa per il periodo corrente. Segue le scadenze reali: una spesa a rate o con carta
+        di credito pesa sul budget quando la singola rata/l&apos;addebito è dovuto, non quando la registri.
       </p>
 
       {isLoading || !summary ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>
       ) : (
-        <BudgetForm monthlyBudget={summary.monthlyBudget} totalExpense={summary.totalExpense} />
+        <BudgetForm monthlyBudget={summary.monthlyBudget} budgetSpent={summary.budgetSpent} />
       )}
     </div>
   );
