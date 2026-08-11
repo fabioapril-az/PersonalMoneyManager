@@ -57,6 +57,12 @@ export function NewExpenseDialog() {
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
+  // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
+  // (a differenza di altre librerie) — senza questa mappa, <SelectValue>
+  // mostra l'id grezzo invece del testo. Vedi anche EditExpenseDialog,
+  // NewIncomeDialog, EditIncomeDialog, AccountsManager, CategoriesManager.
+  const categoryItems = Object.fromEntries(categoryOptions.map((o) => [o.id, o.label]));
+  const accountItems = Object.fromEntries(activeAccounts.map((a) => [a.id, a.name]));
   const selectedAccount = activeAccounts.find((a) => a.id === accountId);
   const statementPreview =
     selectedAccount?.type === "CREDIT_CARD" && selectedAccount.statementDay != null
@@ -126,7 +132,7 @@ export function NewExpenseDialog() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="expense-category">Categoria</Label>
-            <Select value={categoryId} onValueChange={(value) => setCategoryId(value ?? "")}>
+            <Select items={categoryItems} value={categoryId} onValueChange={(value) => setCategoryId(value ?? "")}>
               <SelectTrigger id="expense-category" className="w-full">
                 <SelectValue placeholder="Seleziona categoria" />
               </SelectTrigger>
@@ -146,7 +152,7 @@ export function NewExpenseDialog() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="expense-account">Metodo di pagamento</Label>
-            <Select value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
+            <Select items={accountItems} value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
               <SelectTrigger id="expense-account" className="w-full">
                 <SelectValue placeholder="Seleziona conto" />
               </SelectTrigger>

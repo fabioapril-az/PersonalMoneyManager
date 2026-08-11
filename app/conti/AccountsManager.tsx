@@ -33,7 +33,10 @@ type AccountListItem = {
 
 function AccountTypeSelect({ value, onChange, id }: { value: AccountType; onChange: (v: AccountType) => void; id: string }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as AccountType)}>
+    // items: Base UI's <Select> non deduce l'etichetta dal <SelectItem>
+    // selezionato — senza questa mappa, <SelectValue> mostrerebbe il valore
+    // grezzo dell'enum (es. "CREDIT_CARD") invece di "Carta di credito".
+    <Select items={ACCOUNT_TYPE_LABELS} value={value} onValueChange={(v) => onChange(v as AccountType)}>
       <SelectTrigger id={id} className="w-full">
         <SelectValue />
       </SelectTrigger>

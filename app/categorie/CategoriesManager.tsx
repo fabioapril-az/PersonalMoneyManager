@@ -104,6 +104,12 @@ export function CategoriesManager() {
 
   const topLevel = categories?.filter((c) => !c.parentId) ?? [];
   const childrenOf = (id: string) => categories?.filter((c) => c.parentId === id) ?? [];
+  // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
+  // — senza questa mappa, <SelectValue> mostra l'id grezzo invece del testo.
+  const parentItems: Record<string, string> = {
+    [NO_PARENT]: "Nessuna (categoria principale)",
+    ...Object.fromEntries(topLevel.map((c) => [c.id, c.name])),
+  };
 
   const createCategory = trpc.category.create.useMutation({
     onSuccess: () => {
@@ -143,7 +149,7 @@ export function CategoriesManager() {
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="category-parent">Categoria padre (opzionale)</Label>
-                <Select value={parentId} onValueChange={(value) => setParentId(value ?? NO_PARENT)}>
+                <Select items={parentItems} value={parentId} onValueChange={(value) => setParentId(value ?? NO_PARENT)}>
                   <SelectTrigger id="category-parent" className="w-full">
                     <SelectValue />
                   </SelectTrigger>

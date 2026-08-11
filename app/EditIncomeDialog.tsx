@@ -45,6 +45,9 @@ export function EditIncomeDialog({
   const [notes, setNotes] = useState(() => income?.notes ?? "");
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
+  // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
+  // — senza questa mappa, <SelectValue> mostra l'id grezzo invece del testo.
+  const accountItems = Object.fromEntries(activeAccounts.map((a) => [a.id, a.name]));
 
   function invalidateAndClose() {
     utils.dashboard.summary.invalidate();
@@ -109,7 +112,7 @@ export function EditIncomeDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-income-account">Conto di accredito</Label>
-            <Select value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
+            <Select items={accountItems} value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
               <SelectTrigger id="edit-income-account" className="w-full">
                 <SelectValue placeholder="Seleziona conto" />
               </SelectTrigger>

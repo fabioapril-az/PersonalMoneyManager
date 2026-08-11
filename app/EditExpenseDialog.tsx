@@ -65,6 +65,10 @@ export function EditExpenseDialog({
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
+  // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
+  // — senza questa mappa, <SelectValue> mostra l'id grezzo invece del testo.
+  const categoryItems = Object.fromEntries(categoryOptions.map((o) => [o.id, o.label]));
+  const accountItems = Object.fromEntries(activeAccounts.map((a) => [a.id, a.name]));
 
   function invalidateAndClose() {
     utils.dashboard.summary.invalidate();
@@ -126,7 +130,7 @@ export function EditExpenseDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-expense-category">Categoria</Label>
-            <Select value={categoryId} onValueChange={(value) => setCategoryId(value ?? "")}>
+            <Select items={categoryItems} value={categoryId} onValueChange={(value) => setCategoryId(value ?? "")}>
               <SelectTrigger id="edit-expense-category" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -141,7 +145,7 @@ export function EditExpenseDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="edit-expense-account">Metodo di pagamento</Label>
-            <Select value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
+            <Select items={accountItems} value={accountId} onValueChange={(value) => setAccountId(value ?? "")}>
               <SelectTrigger id="edit-expense-account" className="w-full">
                 <SelectValue placeholder="Seleziona conto" />
               </SelectTrigger>
