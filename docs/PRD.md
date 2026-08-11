@@ -786,3 +786,15 @@ lo scaffolding iniziale (vedi README.md per il dettaglio):
   (`User.monthlyBudget`), non per categoria. Il modello `Budget` per-categoria
   resta nello schema per un eventuale uso futuro più granulare, ma non è
   esposto dall'app oggi.
+* **Dashboard, "cosa è successo davvero sui conti" (sezione 11)**: la home
+  distingue esplicitamente due liste, una per Rule 4 e una per Rule 5, perché
+  possono riferirsi a periodi diversi per rate/carte di credito — es. una
+  spesa a rate decisa a luglio genera una rata pagata (CashMovement) ad
+  agosto, e va vista nel periodo in cui i soldi si sono davvero mossi, non
+  solo in quello della decisione d'acquisto:
+  - **"Spese e entrate"**: Expense/Income per data di decisione (Rule 4),
+    invariato — l'unica sezione cliccabile per modificare/eliminare.
+  - **"Movimenti di cassa"** (nuova): CashMovement per data reale (Rule 5) —
+    mostra anche rate/addebiti carta saldati in questo periodo anche se la
+    spesa che li ha generati è stata decisa in un periodo precedente.
+    Sola lettura.

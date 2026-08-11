@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domain/labels";
+import type { CashMovementType } from "@/lib/domain/enums";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewExpenseDialog } from "./NewExpenseDialog";
@@ -18,6 +20,23 @@ const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", cu
 function formatAmount(value: unknown) {
   return currencyFormatter.format(Number(value));
 }
+
+type CashMovementItem = {
+  id: string;
+  date: Date | string;
+  amount: unknown;
+  type: string;
+  description: string | null;
+  account: { name: string };
+  paymentSchedule: {
+    installmentNo: number | null;
+    paymentPlan: {
+      type: string;
+      installmentsCount: number | null;
+      expense: { category: { icon: string | null } };
+    };
+  } | null;
+};
 
 function BudgetBar({ percentUsed }: { percentUsed: number }) {
   const clamped = Math.min(100, Math.max(0, percentUsed));
@@ -110,6 +129,55 @@ function PendingSchedulesSection() {
   );
 }
 
+// "Cosa è successo davvero sui conti" (PRD Rule 5), distinta da "Spese e
+// entrate" (le decisioni, Rule 4): una rata o un addebito carta pagati in
+// questo periodo compaiono qui per data di CashMovement, anche se la spesa
+// che li ha generati è stata decisa in un periodo precedente.
+function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) {
+  if (movements.length === 0) return null;
+
+  return (
+    <CollapsibleSection title={`Movimenti di cassa (${movements.length})`}>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          Quello che è successo davvero sui conti in questo periodo — comprese rate e addebiti carta saldati ora,
+          anche se decisi in un periodo precedente.
+        </p>
+        {movements.map((movement) => {
+          const schedule = movement.paymentSchedule;
+          const category = schedule?.paymentPlan.expense.category;
+          const typeLabel = CASH_MOVEMENT_TYPE_LABELS[movement.type as CashMovementType];
+          const isOutflow = Number(movement.amount) < 0;
+          return (
+            <Card key={movement.id} className="flex flex-row items-center justify-between gap-2 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+                  {category?.icon ? `${category.icon} ` : ""}
+                  {movement.description ?? "—"}
+                  {schedule &&
+                    schedule.paymentPlan.type === "INSTALLMENTS" &&
+                    ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
+                </p>
+                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {movement.account.name} · {dateFormatter.format(new Date(movement.date))}
+                  {typeLabel ? ` · ${typeLabel}` : ""}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 text-sm font-medium ${
+                  isOutflow ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {formatAmount(movement.amount)}
+              </span>
+            </Card>
+          );
+        })}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export function DashboardClient() {
   // undefined => periodo corrente (il server sceglie "oggi"); una volta che
   // si naviga altrove diventa una data concreta dentro il periodo mostrato.
@@ -133,6 +201,7 @@ export function DashboardClient() {
     accounts,
     recentExpenses,
     recentIncomes,
+    cashMovements,
   } = data;
 
   // Un giorno prima dell'inizio/dopo la fine del periodo mostrato individua
@@ -248,6 +317,8 @@ export function DashboardClient() {
 
       <PendingSchedulesSection />
 
+      <CashMovementsSection movements={cashMovements} />
+
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Budget mensile</h2>
@@ -273,8 +344,10 @@ export function DashboardClient() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Movimenti recenti</h2>
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">Clicca su un movimento per modificarlo o eliminarlo.</p>
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Spese e entrate</h2>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
+        </p>
         {recentMovements.length === 0 && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.

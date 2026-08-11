@@ -1,4 +1,4 @@
-import type { AccountType } from "./enums";
+import type { AccountType, CashMovementType } from "./enums";
 
 // Italian labels for the closed-set values in lib/domain/enums.ts — kept
 // separate from the enums themselves so this file (UI concern) can grow
@@ -9,4 +9,17 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   PAYPAL: "PayPal",
   CASH: "Contanti",
   OTHER: "Altro",
+};
+
+// Usate nella sezione "Movimenti di cassa" (PRD Rule 5) per distinguere a
+// colpo d'occhio un movimento avvenuto ORA da una spesa decisa altrove nel
+// tempo (rata, addebito carta) — OTHER non ha un'etichetta: è il caso "normale"
+// (spesa immediata, stesso giorno) e la descrizione basta da sola.
+export const CASH_MOVEMENT_TYPE_LABELS: Partial<Record<CashMovementType, string>> = {
+  INCOME: "Entrata",
+  TRANSFER: "Trasferimento",
+  CARD_CHARGE: "Addebito carta",
+  INSTALLMENT_PAYMENT: "Rata",
+  WITHDRAWAL: "Prelievo",
+  ADJUSTMENT: "Rettifica",
 };

@@ -16,7 +16,7 @@ export const dashboardRouter = router({
       const period = getCurrentFinancialPeriod(input?.referenceDate);
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
 
-      const [incomes, expenses, schedulesDueInPeriod, accounts, user] = await Promise.all([
+      const [incomes, expenses, schedulesDueInPeriod, cashMovements, accounts, user] = await Promise.all([
         ctx.prisma.income.findMany({
           where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
           // accountId non è un campo di Income (solo il suo CashMovement lo
@@ -43,6 +43,30 @@ export const dashboardRouter = router({
             paymentPlan: { expense: { userId: ctx.userId }, account: { excludeFromTotals: false } },
           },
           select: { amount: true },
+        }),
+        // "Movimenti di cassa" (PRD Rule 5): cosa è successo DAVVERO sui
+        // conti in questo periodo, per data di CashMovement — non di
+        // Expense/Income. Una rata o un addebito carta pagati in questo
+        // periodo compaiono qui anche se la spesa che li ha generati è stata
+        // decisa in un periodo precedente (a differenza di recentExpenses).
+        ctx.prisma.cashMovement.findMany({
+          where: { date: { gte: period.start, lte: period.end }, account: { userId: ctx.userId } },
+          include: {
+            account: { select: { id: true, name: true } },
+            paymentSchedule: {
+              select: {
+                installmentNo: true,
+                paymentPlan: {
+                  select: {
+                    type: true,
+                    installmentsCount: true,
+                    expense: { select: { category: { select: { icon: true, name: true } } } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { date: "desc" },
         }),
         listAccountsWithBalance(ctx.prisma, ctx.userId),
         ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
@@ -87,6 +111,7 @@ export const dashboardRouter = router({
         accounts,
         recentExpenses: expenses.slice(0, 5),
         recentIncomes: incomes.slice(0, 5),
+        cashMovements,
       };
     }),
 });
