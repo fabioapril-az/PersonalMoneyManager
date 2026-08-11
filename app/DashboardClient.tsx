@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
@@ -74,41 +74,47 @@ function PendingSchedulesSection() {
 
   if (isLoading || !pending || pending.length === 0) return null;
 
+  // Come "Saldo conti": può contenere molte rate/addebiti e finire per
+  // occupare tutto lo schermo prima del resto del contenuto.
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Impegni futuri</h2>
-      <p className="text-xs text-zinc-400 dark:text-zinc-500">
-        Addebiti carta e rate non ancora avvenuti — non contano ancora sul saldo del conto.
-      </p>
-      {pending.map((schedule) => (
-        <Card key={schedule.id} className="flex flex-row items-center justify-between gap-2 p-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
-              {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
-              {schedule.paymentPlan.expense.description}
-              {schedule.paymentPlan.type === "INSTALLMENTS" &&
-                ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
-            </p>
-            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-              {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
-              {formatAmount(schedule.amount)}
-            </span>
-            <Button size="sm" variant="outline" disabled={markPaid.isPending} onClick={() => markPaid.mutate({ id: schedule.id })}>
-              Segna pagato
-            </Button>
-          </div>
-        </Card>
-      ))}
-    </div>
+    <CollapsibleSection title={`Impegni futuri (${pending.length})`}>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          Addebiti carta e rate non ancora avvenuti — non contano ancora sul saldo del conto.
+        </p>
+        {pending.map((schedule) => (
+          <Card key={schedule.id} className="flex flex-row items-center justify-between gap-2 p-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+                {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
+                {schedule.paymentPlan.expense.description}
+                {schedule.paymentPlan.type === "INSTALLMENTS" &&
+                  ` · rata ${schedule.installmentNo}/${schedule.paymentPlan.installmentsCount}`}
+              </p>
+              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                {formatAmount(schedule.amount)}
+              </span>
+              <Button size="sm" variant="outline" disabled={markPaid.isPending} onClick={() => markPaid.mutate({ id: schedule.id })}>
+                Segna pagato
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </CollapsibleSection>
   );
 }
 
 export function DashboardClient() {
-  const { data, isLoading } = trpc.dashboard.summary.useQuery();
+  // undefined => periodo corrente (il server sceglie "oggi"); una volta che
+  // si naviga altrove diventa una data concreta dentro il periodo mostrato.
+  const [referenceDate, setReferenceDate] = useState<Date | undefined>(undefined);
+  const { data, isLoading } = trpc.dashboard.summary.useQuery({ referenceDate });
   const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
   const [editingIncome, setEditingIncome] = useState<EditableIncome | null>(null);
 
@@ -118,6 +124,7 @@ export function DashboardClient() {
 
   const {
     period,
+    isCurrentPeriod,
     totalIncome,
     totalExpense,
     available,
@@ -127,6 +134,22 @@ export function DashboardClient() {
     recentExpenses,
     recentIncomes,
   } = data;
+
+  // Un giorno prima dell'inizio/dopo la fine del periodo mostrato individua
+  // esattamente il periodo precedente/successivo (27→26).
+  function goToPreviousPeriod() {
+    const previous = new Date(period.start);
+    previous.setDate(previous.getDate() - 1);
+    setReferenceDate(previous);
+  }
+  function goToNextPeriod() {
+    const next = new Date(period.end);
+    next.setDate(next.getDate() + 1);
+    setReferenceDate(next);
+  }
+  function goToCurrentPeriod() {
+    setReferenceDate(undefined);
+  }
   const budgetAmount = monthlyBudget != null ? Number(monthlyBudget) : null;
   // Budget segue le scadenze reali (budgetSpent), non "Spese" (totalExpense)
   // — vedi il commento in server/routers/dashboard.ts.
@@ -159,11 +182,24 @@ export function DashboardClient() {
     <div className="flex w-full max-w-2xl flex-col gap-8">
       <div className="flex flex-col gap-2 text-center">
         <p className="text-sm font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Periodo corrente
+          {isCurrentPeriod ? "Periodo corrente" : "Periodo"}
         </p>
-        <h1 className="text-3xl font-semibold text-zinc-950 dark:text-zinc-50">
-          {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
-        </h1>
+        <div className="flex items-center justify-center gap-2">
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousPeriod} aria-label="Periodo precedente">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <h1 className="text-2xl font-semibold text-zinc-950 sm:text-3xl dark:text-zinc-50">
+            {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
+          </h1>
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextPeriod} aria-label="Periodo successivo">
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+        {!isCurrentPeriod && (
+          <button type="button" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400" onClick={goToCurrentPeriod}>
+            Torna a oggi
+          </button>
+        )}
       </div>
 
       <div className="flex justify-center gap-3">
