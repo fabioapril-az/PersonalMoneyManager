@@ -20,6 +20,9 @@ export default async function Home() {
           <Link href="/budget" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
             Budget
           </Link>
+          <Link href="/report" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
+            Report
+          </Link>
           <Link href="/profilo" className="text-sm text-zinc-600 hover:underline dark:text-zinc-300">
             Profilo
           </Link>
