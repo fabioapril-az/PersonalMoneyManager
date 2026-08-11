@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { NewExpenseDialog } from "./NewExpenseDialog";
 import { NewIncomeDialog } from "./NewIncomeDialog";
 import { EditExpenseDialog, type EditableExpense } from "./EditExpenseDialog";
@@ -25,6 +27,53 @@ function BudgetBar({ percentUsed }: { percentUsed: number }) {
         className={`h-1.5 rounded-full ${overBudget ? "bg-red-600 dark:bg-red-400" : "bg-emerald-600 dark:bg-emerald-400"}`}
         style={{ width: `${clamped}%` }}
       />
+    </div>
+  );
+}
+
+function PendingSchedulesSection() {
+  const utils = trpc.useUtils();
+  const { data: pending, isLoading } = trpc.paymentSchedule.listPending.useQuery();
+
+  const markPaid = trpc.paymentSchedule.markPaid.useMutation({
+    onSuccess: () => {
+      toast.success("Segnato come pagato.");
+      utils.paymentSchedule.listPending.invalidate();
+      utils.dashboard.summary.invalidate();
+      utils.account.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Impossibile aggiornare la scadenza."),
+  });
+
+  if (isLoading || !pending || pending.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Impegni futuri</h2>
+      <p className="text-xs text-zinc-400 dark:text-zinc-500">
+        Addebiti carta non ancora avvenuti — non contano ancora sul saldo del conto.
+      </p>
+      {pending.map((schedule) => (
+        <Card key={schedule.id} className="flex flex-row items-center justify-between gap-2 p-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+              {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
+              {schedule.paymentPlan.expense.description}
+            </p>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">
+              {formatAmount(schedule.amount)}
+            </span>
+            <Button size="sm" variant="outline" disabled={markPaid.isPending} onClick={() => markPaid.mutate({ id: schedule.id })}>
+              Segna pagato
+            </Button>
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -119,6 +168,8 @@ export function DashboardClient() {
           </Card>
         ))}
       </div>
+
+      <PendingSchedulesSection />
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

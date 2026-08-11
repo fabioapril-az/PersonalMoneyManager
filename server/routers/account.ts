@@ -4,12 +4,22 @@ import { accountTypeSchema } from "@/lib/domain/enums";
 import { listAccountsWithBalance } from "../accountBalances";
 import { protectedProcedure, router } from "../trpc";
 
-const createAccountSchema = z.object({
-  name: z.string().trim().min(1, "Il nome è obbligatorio.").max(60),
-  type: accountTypeSchema,
-  currency: z.string().trim().min(1).max(10).default("EUR"),
-  openingBalance: z.number().finite().default(0),
-});
+const statementDaySchema = z.number().int().min(1).max(31);
+
+const createAccountSchema = z
+  .object({
+    name: z.string().trim().min(1, "Il nome è obbligatorio.").max(60),
+    type: accountTypeSchema,
+    currency: z.string().trim().min(1).max(10).default("EUR"),
+    openingBalance: z.number().finite().default(0),
+    // Obbligatorio solo per le carte di credito (PRD sezione 6) — vedi la
+    // validazione sotto e il commento su Account.statementDay in schema.prisma.
+    statementDay: statementDaySchema.optional(),
+  })
+  .refine((data) => data.type !== "CREDIT_CARD" || data.statementDay != null, {
+    message: "Le carte di credito richiedono il giorno di fatturazione (1-31).",
+    path: ["statementDay"],
+  });
 
 const updateAccountSchema = z.object({
   id: z.string(),
@@ -17,6 +27,7 @@ const updateAccountSchema = z.object({
   type: accountTypeSchema.optional(),
   currency: z.string().trim().min(1).max(10).optional(),
   openingBalance: z.number().finite().optional(),
+  statementDay: statementDaySchema.nullable().optional(),
 });
 
 export const accountRouter = router({
@@ -38,6 +49,18 @@ export const accountRouter = router({
       where: { id: input.id, userId: ctx.userId },
     });
     if (!account) throw new TRPCError({ code: "NOT_FOUND" });
+
+    // Zod non può vedere la riga esistente, quindi la coerenza
+    // tipo-carta-di-credito/statementDay va controllata qui, considerando
+    // sia il valore nuovo (se fornito) sia quello già salvato.
+    const effectiveType = input.type ?? account.type;
+    const effectiveStatementDay = input.statementDay !== undefined ? input.statementDay : account.statementDay;
+    if (effectiveType === "CREDIT_CARD" && effectiveStatementDay == null) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Le carte di credito richiedono il giorno di fatturazione (1-31).",
+      });
+    }
 
     const { id, ...data } = input;
     return ctx.prisma.account.update({ where: { id }, data });

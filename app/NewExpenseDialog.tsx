@@ -15,6 +15,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { computeCardStatementDate } from "@/lib/domain/creditCard";
+
+const statementDateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
@@ -54,6 +57,11 @@ export function NewExpenseDialog() {
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
+  const selectedAccount = activeAccounts.find((a) => a.id === accountId);
+  const statementPreview =
+    selectedAccount?.type === "CREDIT_CARD" && selectedAccount.statementDay != null
+      ? computeCardStatementDate(new Date(date), selectedAccount.statementDay)
+      : null;
 
   const createExpense = trpc.expense.create.useMutation({
     onSuccess: () => {
@@ -153,6 +161,11 @@ export function NewExpenseDialog() {
             {activeAccounts.length === 0 && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Nessun conto — creane uno in &quot;Conti&quot; prima di continuare.
+              </p>
+            )}
+            {statementPreview && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Verrà addebitata il {statementDateFormatter.format(statementPreview)}, non subito.
               </p>
             )}
           </div>

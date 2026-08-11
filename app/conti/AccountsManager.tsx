@@ -27,6 +27,7 @@ type AccountListItem = {
   type: string;
   balance: unknown;
   openingBalance: unknown;
+  statementDay: number | null;
   archived: boolean;
 };
 
@@ -47,12 +48,35 @@ function AccountTypeSelect({ value, onChange, id }: { value: AccountType; onChan
   );
 }
 
+// Solo per le carte di credito (PRD sezione 6) — il giorno del mese in cui
+// l'acquisto diventa un vero addebito, il mese successivo.
+function StatementDayField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id}>Giorno di fatturazione (1-31)</Label>
+      <Input id={id} type="number" min={1} max={31} value={value} onChange={(e) => onChange(e.target.value)} required />
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Un acquisto oggi verrà addebitato a questo giorno del mese successivo, non subito.
+      </p>
+    </div>
+  );
+}
+
 function AccountRow({ account }: { account: AccountListItem }) {
   const utils = trpc.useUtils();
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState(account.name);
   const [type, setType] = useState<AccountType>(account.type as AccountType);
   const [openingBalance, setOpeningBalance] = useState(String(Number(account.openingBalance)));
+  const [statementDay, setStatementDay] = useState(account.statementDay != null ? String(account.statementDay) : "");
 
   const updateAccount = trpc.account.update.useMutation({
     onSuccess: () => {
@@ -79,7 +103,17 @@ function AccountRow({ account }: { account: AccountListItem }) {
       toast.error("Saldo iniziale non valido.");
       return;
     }
-    updateAccount.mutate({ id: account.id, name, type, openingBalance: parsedBalance });
+    if (type === "CREDIT_CARD" && !statementDay) {
+      toast.error("Indica il giorno di fatturazione.");
+      return;
+    }
+    updateAccount.mutate({
+      id: account.id,
+      name,
+      type,
+      openingBalance: parsedBalance,
+      statementDay: type === "CREDIT_CARD" ? Number(statementDay) : null,
+    });
   }
 
   return (
@@ -109,6 +143,9 @@ function AccountRow({ account }: { account: AccountListItem }) {
               <Label htmlFor="edit-account-type">Tipo</Label>
               <AccountTypeSelect id="edit-account-type" value={type} onChange={setType} />
             </div>
+            {type === "CREDIT_CARD" && (
+              <StatementDayField id="edit-account-statement-day" value={statementDay} onChange={setStatementDay} />
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-account-balance">Saldo iniziale (€)</Label>
               <Input
@@ -150,6 +187,7 @@ export function AccountsManager() {
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("CHECKING");
   const [openingBalance, setOpeningBalance] = useState("0");
+  const [statementDay, setStatementDay] = useState("");
 
   const createAccount = trpc.account.create.useMutation({
     onSuccess: () => {
@@ -160,6 +198,7 @@ export function AccountsManager() {
       setName("");
       setType("CHECKING");
       setOpeningBalance("0");
+      setStatementDay("");
     },
     onError: (error) => toast.error(error.message || "Impossibile creare il conto."),
   });
@@ -171,7 +210,16 @@ export function AccountsManager() {
       toast.error("Saldo iniziale non valido.");
       return;
     }
-    createAccount.mutate({ name, type, openingBalance: parsedBalance });
+    if (type === "CREDIT_CARD" && !statementDay) {
+      toast.error("Indica il giorno di fatturazione.");
+      return;
+    }
+    createAccount.mutate({
+      name,
+      type,
+      openingBalance: parsedBalance,
+      statementDay: type === "CREDIT_CARD" ? Number(statementDay) : undefined,
+    });
   }
 
   return (
@@ -193,6 +241,9 @@ export function AccountsManager() {
                 <Label htmlFor="account-type">Tipo</Label>
                 <AccountTypeSelect id="account-type" value={type} onChange={setType} />
               </div>
+              {type === "CREDIT_CARD" && (
+                <StatementDayField id="account-statement-day" value={statementDay} onChange={setStatementDay} />
+              )}
               <div className="flex flex-col gap-2">
                 <Label htmlFor="account-balance">Saldo iniziale (€)</Label>
                 <Input
