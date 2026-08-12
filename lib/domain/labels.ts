@@ -6,6 +6,7 @@ import type { AccountType, CashMovementType, ReportGranularity } from "./enums";
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CHECKING: "Conto corrente",
   CREDIT_CARD: "Carta di credito",
+  PREPAID_CARD: "Carta ricaricabile",
   PAYPAL: "PayPal",
   CASH: "Contanti",
   OTHER: "Altro",

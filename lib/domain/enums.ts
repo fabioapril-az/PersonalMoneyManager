@@ -14,7 +14,11 @@ import { z } from "zod";
  * string from the DB or the network without parsing it through one of these.
  */
 
-export const ACCOUNT_TYPES = ["CHECKING", "CREDIT_CARD", "PAYPAL", "CASH", "OTHER"] as const;
+// PREPAID_CARD (carta ricaricabile: Postepay, Hype, ecc.) è puramente
+// un'etichetta più chiara di "Altro" — stessa identica logica di qualunque
+// conto non CREDIT_CARD (pagamento immediato, nessuna fatturazione
+// differita): ricarica = Trasferimento, spesa = pagamento immediato.
+export const ACCOUNT_TYPES = ["CHECKING", "CREDIT_CARD", "PREPAID_CARD", "PAYPAL", "CASH", "OTHER"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const accountTypeSchema = z.enum(ACCOUNT_TYPES);
 
