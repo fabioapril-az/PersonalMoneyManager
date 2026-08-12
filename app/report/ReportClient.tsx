@@ -5,6 +5,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { GRANULARITY_PERIOD_COUNT, shiftPeriods, type FinancialPeriod } from "@/lib/domain/period";
+import { REPORT_GRANULARITIES, type ReportGranularity } from "@/lib/domain/enums";
+import { REPORT_GRANULARITY_LABELS } from "@/lib/domain/labels";
 
 // timeZone: "UTC" su entrambi — vedi il commento sull'omonimo dateFormatter
 // in DashboardClient.tsx: i confini di periodo sono mezzanotte UTC, senza
@@ -146,50 +149,88 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
   );
 }
 
+// Mensile/Trimestrale/Annuale — un semplice controllo segmentato, 3 opzioni
+// fisse non giustificano un <Select>.
+function GranularitySelector({
+  value,
+  onChange,
+}: {
+  value: ReportGranularity;
+  onChange: (value: ReportGranularity) => void;
+}) {
+  return (
+    <div className="flex justify-center gap-2">
+      {REPORT_GRANULARITIES.map((granularity) => (
+        <Button
+          key={granularity}
+          size="sm"
+          variant={granularity === value ? "default" : "outline"}
+          onClick={() => onChange(granularity)}
+        >
+          {REPORT_GRANULARITY_LABELS[granularity]}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export function ReportClient() {
+  const [granularity, setGranularity] = useState<ReportGranularity>("MONTHLY");
   // Stessa convenzione di navigazione periodo di DashboardClient.tsx:
   // undefined => periodo corrente, altrimenti una data concreta al suo
-  // interno.
+  // interno. Cambiare granularità mantiene lo stesso periodo-ancora (quello
+  // più recente della finestra) e ricalcola solo la dimensione della
+  // finestra, invece di saltare sempre a "oggi".
   const [referenceDate, setReferenceDate] = useState<Date | undefined>(undefined);
-  const { data, isLoading } = trpc.report.summary.useQuery({ referenceDate, periodsCount: 6 });
+  const { data, isLoading } = trpc.report.summary.useQuery({ referenceDate, granularity });
 
   if (isLoading || !data) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
   }
 
-  const { period, isCurrentPeriod, totalExpense, totalIncome, categoryBreakdown, trend } = data;
+  const { period, windowStart, windowEnd, isCurrentPeriod, totalExpense, totalIncome, categoryBreakdown, trend } = data;
+  const periodsInWindow = GRANULARITY_PERIOD_COUNT[granularity];
+  // shiftPeriods vuole Date reali — ricostruito esplicitamente invece di
+  // fidarsi del tipo inferito da tRPC, stesso motivo per cui altrove
+  // (DashboardClient.tsx) si fa sempre new Date(period.start) prima di usarlo.
+  const anchorPeriod: FinancialPeriod = {
+    start: new Date(period.start),
+    end: new Date(period.end),
+    key: period.key,
+  };
 
-  function goToPreviousPeriod() {
-    const previous = new Date(period.start);
-    previous.setDate(previous.getDate() - 1);
-    setReferenceDate(previous);
+  // shiftPeriods(anchorPeriod, ±periodsInWindow) salta l'intera finestra in
+  // un colpo (es. un trimestre intero, non un periodo alla volta) —
+  // anchorPeriod è sempre il periodo più recente della finestra corrente,
+  // vedi il commento in server/routers/report.ts.
+  function goToPreviousWindow() {
+    setReferenceDate(shiftPeriods(anchorPeriod, -periodsInWindow).start);
   }
-  function goToNextPeriod() {
-    const next = new Date(period.end);
-    next.setDate(next.getDate() + 1);
-    setReferenceDate(next);
+  function goToNextWindow() {
+    setReferenceDate(shiftPeriods(anchorPeriod, periodsInWindow).start);
   }
-  function goToCurrentPeriod() {
+  function goToCurrentWindow() {
     setReferenceDate(undefined);
   }
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-8">
-      <div className="flex flex-col gap-2 text-center">
+      <div className="flex flex-col gap-3 text-center">
         <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Report</h1>
+        <GranularitySelector value={granularity} onChange={setGranularity} />
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousPeriod} aria-label="Periodo precedente">
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousWindow} aria-label="Periodo precedente">
             <ChevronLeft className="size-4" />
           </Button>
           <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
+            {dateFormatter.format(new Date(windowStart))} → {dateFormatter.format(new Date(windowEnd))}
           </p>
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextPeriod} aria-label="Periodo successivo">
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextWindow} aria-label="Periodo successivo">
             <ChevronRight className="size-4" />
           </Button>
         </div>
         {!isCurrentPeriod && (
-          <button type="button" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400" onClick={goToCurrentPeriod}>
+          <button type="button" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400" onClick={goToCurrentWindow}>
             Torna a oggi
           </button>
         )}

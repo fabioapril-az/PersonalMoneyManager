@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getFinancialPeriod, getRecentPeriods, isWithinPeriod } from "./period";
+import { getFinancialPeriod, getRecentPeriods, isWithinPeriod, shiftPeriods } from "./period";
 
 // Everything here works in UTC calendar terms (see the comment at the top
 // of period.ts) — inputs/expectations use Date.UTC(...), not the local
@@ -52,5 +52,29 @@ describe("getRecentPeriods", () => {
       "2026-07-27_2026-08-26",
       "2026-06-27_2026-07-26",
     ]);
+  });
+});
+
+describe("shiftPeriods", () => {
+  const period = getFinancialPeriod(new Date(Date.UTC(2026, 7, 27))); // Aug 27 -> Sep 26
+
+  it("moves forward by N periods", () => {
+    expect(shiftPeriods(period, 1).key).toBe("2026-09-27_2026-10-26");
+    expect(shiftPeriods(period, 3).key).toBe("2026-11-27_2026-12-26");
+  });
+
+  it("moves backward by N periods", () => {
+    expect(shiftPeriods(period, -1).key).toBe("2026-07-27_2026-08-26");
+    expect(shiftPeriods(period, -3).key).toBe("2026-05-27_2026-06-26");
+  });
+
+  it("returns the same period for a zero shift", () => {
+    expect(shiftPeriods(period, 0).key).toBe(period.key);
+  });
+
+  it("composes with getRecentPeriods: shifting a window's anchor back by its size lands one period before the window's oldest period", () => {
+    const windowPeriods = getRecentPeriods(3, period.start); // most recent first: Aug, Jul, Jun
+    const oneBeforeWindow = shiftPeriods(windowPeriods[windowPeriods.length - 1], -1);
+    expect(oneBeforeWindow.key).toBe("2026-05-27_2026-06-26");
   });
 });

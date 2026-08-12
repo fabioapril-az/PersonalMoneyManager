@@ -1,3 +1,5 @@
+import type { ReportGranularity } from "./enums";
+
 /**
  * Financial period (PRD section 3): the app does NOT use the calendar month.
  * A period runs 27th of a month -> 26th of the next month (e.g. 27 Aug -> 26 Sep).
@@ -77,6 +79,39 @@ export function getRecentPeriods(count: number, reference: Date = new Date()): F
   }
   return periods;
 }
+
+/**
+ * Moves forward (positive count) or backward (negative) by whole periods —
+ * used both by the Report page's granularity windows (jump by 3/12 periods
+ * at once instead of 1, see GRANULARITY_PERIOD_COUNT) and by period
+ * navigation on the dashboard (jump by exactly 1). One UTC day past the
+ * boundary each step, same reasoning as getRecentPeriods above — never
+ * setDate, which drifts on any non-UTC runtime.
+ */
+export function shiftPeriods(period: FinancialPeriod, count: number): FinancialPeriod {
+  const step = count > 0 ? 1 : -1;
+  let current = period;
+  for (let i = 0; i < Math.abs(count); i++) {
+    const reference =
+      step > 0
+        ? new Date(current.end.getTime() + 24 * 60 * 60 * 1000)
+        : new Date(current.start.getTime() - 24 * 60 * 60 * 1000);
+    current = getFinancialPeriod(reference);
+  }
+  return current;
+}
+
+/**
+ * How many consecutive financial periods each Report granularity aggregates
+ * — deliberately "rolling" (the last N periods ending at whichever one is
+ * currently shown), not calendar-aligned quarters/years: those never line up
+ * cleanly with a 27->26 period anyway.
+ */
+export const GRANULARITY_PERIOD_COUNT: Record<ReportGranularity, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  YEARLY: 12,
+};
 
 function pad(n: number): string {
   return n.toString().padStart(2, "0");

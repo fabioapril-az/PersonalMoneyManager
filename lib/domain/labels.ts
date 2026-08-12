@@ -1,4 +1,4 @@
-import type { AccountType, CashMovementType } from "./enums";
+import type { AccountType, CashMovementType, ReportGranularity } from "./enums";
 
 // Italian labels for the closed-set values in lib/domain/enums.ts — kept
 // separate from the enums themselves so this file (UI concern) can grow
@@ -22,4 +22,12 @@ export const CASH_MOVEMENT_TYPE_LABELS: Partial<Record<CashMovementType, string>
   INSTALLMENT_PAYMENT: "Rata",
   WITHDRAWAL: "Prelievo",
   ADJUSTMENT: "Rettifica",
+};
+
+// Selettore vista nella pagina Report — vedi GRANULARITY_PERIOD_COUNT in
+// lib/domain/period.ts per quanti periodi ciascuna vista aggrega.
+export const REPORT_GRANULARITY_LABELS: Record<ReportGranularity, string> = {
+  MONTHLY: "Mensile",
+  QUARTERLY: "Trimestrale",
+  YEARLY: "Annuale",
 };

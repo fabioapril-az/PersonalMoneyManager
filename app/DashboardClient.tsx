@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domain/labels";
 import type { CashMovementType } from "@/lib/domain/enums";
+import { shiftPeriods, type FinancialPeriod } from "@/lib/domain/period";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { NewExpenseDialog } from "./NewExpenseDialog";
@@ -339,17 +340,18 @@ export function DashboardClient() {
     cashMovements,
   } = data;
 
-  // Un giorno prima dell'inizio/dopo la fine del periodo mostrato individua
-  // esattamente il periodo precedente/successivo (27→26).
+  // shiftPeriods vuole Date reali — ricostruito esplicitamente invece di
+  // fidarsi del tipo inferito da tRPC (stessa cautela di app/report/ReportClient.tsx).
+  const anchorPeriod: FinancialPeriod = {
+    start: new Date(period.start),
+    end: new Date(period.end),
+    key: period.key,
+  };
   function goToPreviousPeriod() {
-    const previous = new Date(period.start);
-    previous.setDate(previous.getDate() - 1);
-    setReferenceDate(previous);
+    setReferenceDate(shiftPeriods(anchorPeriod, -1).start);
   }
   function goToNextPeriod() {
-    const next = new Date(period.end);
-    next.setDate(next.getDate() + 1);
-    setReferenceDate(next);
+    setReferenceDate(shiftPeriods(anchorPeriod, 1).start);
   }
   function goToCurrentPeriod() {
     setReferenceDate(undefined);

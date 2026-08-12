@@ -56,3 +56,10 @@ export const cashMovementStatusSchema = z.enum(CASH_MOVEMENT_STATUSES);
 export const RECURRING_FREQUENCIES = ["WEEKLY", "MONTHLY", "YEARLY"] as const;
 export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number];
 export const recurringFrequencySchema = z.enum(RECURRING_FREQUENCIES);
+
+// Non un campo di un modello Prisma (il Report non salva nulla) — un input
+// tRPC comunque validato qui per restare nello stesso posto di ogni altro
+// "insieme chiuso di valori" dell'app.
+export const REPORT_GRANULARITIES = ["MONTHLY", "QUARTERLY", "YEARLY"] as const;
+export type ReportGranularity = (typeof REPORT_GRANULARITIES)[number];
+export const reportGranularitySchema = z.enum(REPORT_GRANULARITIES);
