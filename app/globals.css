@@ -2,7 +2,55 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * Nessun @custom-variant dark qui (a differenza dello scaffold shadcn di
+ * default): niente in questa app aggiunge mai una classe .dark da qualche
+ * parte (nessun ThemeProvider/toggle) — con quella riga, ogni classe dark:
+ * scritta finora (in tutto il progetto) non ha mai avuto alcun effetto.
+ * Senza l'override, il variant dark: di Tailwind torna al comportamento di
+ * default (@media prefers-color-scheme: dark), che segue davvero il tema
+ * del sistema dell'utente.
+ */
+
+/*
+ * "Fresh Slate, Brillante" — la direzione scelta dopo il confronto di 4
+ * palette (vedi la conversazione). Neutro con una leggera dominante
+ * verde-teal (mai grigio puro — vedi lo scopo di ink-* sotto) + tre accenti
+ * decisi: teal per il positivo/primario, corallo per le uscite, ambra come
+ * terzo accento (barra budget/grafici) — non solo rosso/verde da default.
+ * ink-* sostituisce zinc-* in tutto il codice (stesso identico utilizzo:
+ * bg-ink-50/dark:bg-ink-950 per lo sfondo pagina, text-ink-500 per i testi
+ * secondari, ecc.) — è un rename 1:1, non una scala nuova da imparare.
+ */
+@theme {
+  --color-ink-50: #eaf7f4;
+  --color-ink-100: #d9f0ea;
+  --color-ink-200: #b8e1d6;
+  --color-ink-300: #94cdbe;
+  --color-ink-400: #6fb2a2;
+  --color-ink-500: #5b9c8c;
+  --color-ink-600: #3c7568;
+  --color-ink-700: #2e5a52;
+  --color-ink-800: #223f3a;
+  --color-ink-900: #172b27;
+  --color-ink-950: #0c1b18;
+
+  --color-teal-50: #eafbf9;
+  --color-teal-100: #cdf3ec;
+  --color-teal-400: #2dd4c4;
+  --color-teal-500: #00b8a9;
+  --color-teal-600: #009488;
+
+  --color-coral-50: #fff1ec;
+  --color-coral-100: #ffdcd0;
+  --color-coral-400: #ff8a6b;
+  --color-coral-500: #ff6b4a;
+  --color-coral-600: #e5502f;
+
+  --color-amber-400: #ffcf4d;
+  --color-amber-500: #ffb100;
+  --color-amber-600: #db9400;
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -49,24 +97,24 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: #eaf7f4;
+  --foreground: #0c1b18;
+  --card: #ffffff;
+  --card-foreground: #0c1b18;
+  --popover: #ffffff;
+  --popover-foreground: #0c1b18;
+  --primary: #009488;
+  --primary-foreground: #ffffff;
+  --secondary: #d9f0ea;
+  --secondary-foreground: #0c1b18;
+  --muted: #d9f0ea;
+  --muted-foreground: #3c7568;
+  --accent: #d9f0ea;
+  --accent-foreground: #0c1b18;
+  --destructive: #ff6b4a;
+  --border: #b8e1d6;
+  --input: #b8e1d6;
+  --ring: #00b8a9;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -83,38 +131,46 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/*
+ * @media, non .dark: — vedi la nota in cima al file. Con il variant dark:
+ * ora basato su prefers-color-scheme, anche l'override dei token shadcn
+ * deve seguire lo stesso meccanismo, altrimenti questo blocco non
+ * scatterebbe mai (nessuna classe .dark viene mai aggiunta a nulla).
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c1b18;
+    --foreground: #eaf7f4;
+    --card: #142722;
+    --card-foreground: #eaf7f4;
+    --popover: #142722;
+    --popover-foreground: #eaf7f4;
+    --primary: #2dd4c4;
+    --primary-foreground: #0c1b18;
+    --secondary: #1c352f;
+    --secondary-foreground: #eaf7f4;
+    --muted: #1c352f;
+    --muted-foreground: #94cdbe;
+    --accent: #1c352f;
+    --accent-foreground: #eaf7f4;
+    --destructive: #ff8a6b;
+    --border: #24413a;
+    --input: #24413a;
+    --ring: #2dd4c4;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
 }
 
 @layer base {

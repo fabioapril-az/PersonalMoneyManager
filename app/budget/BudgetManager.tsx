@@ -73,13 +73,13 @@ function BudgetForm({ monthlyBudget, budgetSpent }: { monthlyBudget: unknown; bu
       {budget != null && (
         <Card className="flex flex-col gap-1 p-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-500 dark:text-zinc-400">Speso in questo periodo</span>
-            <span className="font-medium text-zinc-950 dark:text-zinc-50">{currencyFormatter.format(spent)}</span>
+            <span className="text-ink-500 dark:text-ink-400">Speso in questo periodo</span>
+            <span className="font-medium text-ink-950 dark:text-ink-50">{currencyFormatter.format(spent)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-500 dark:text-zinc-400">Residuo</span>
+            <span className="text-ink-500 dark:text-ink-400">Residuo</span>
             <span
-              className={`font-medium ${spent > budget ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}
+              className={`font-medium ${spent > budget ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"}`}
             >
               {currencyFormatter.format(budget - spent)}
             </span>
@@ -95,14 +95,14 @@ export function BudgetManager() {
 
   return (
     <div className="flex w-full max-w-sm flex-col gap-4">
-      <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Budget mensile</h2>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <h2 className="text-lg font-semibold text-ink-950 dark:text-ink-50">Budget mensile</h2>
+      <p className="text-sm text-ink-500 dark:text-ink-400">
         Un unico tetto di spesa per il periodo corrente. Una spesa a pagamento immediato o con carta di credito
         pesa quando la fai; una spesa a rate pesa una rata alla volta, quando ciascuna scade.
       </p>
 
       {isLoading || !summary ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>
+        <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>
       ) : (
         <BudgetForm monthlyBudget={summary.monthlyBudget} budgetSpent={summary.budgetSpent} />
       )}

@@ -117,7 +117,7 @@ export function NewIncomeDialog() {
               </SelectContent>
             </Select>
             {activeAccounts.length === 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Nessun conto — creane uno in &quot;Conti&quot; prima di continuare.
               </p>
             )}

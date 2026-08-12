@@ -129,7 +129,7 @@ export function NewTransferDialog() {
               </SelectContent>
             </Select>
             {activeAccounts.length < 2 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Servono almeno due conti — creane un altro in &quot;Conti&quot; prima di continuare.
               </p>
             )}

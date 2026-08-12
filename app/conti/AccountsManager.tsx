@@ -44,7 +44,7 @@ function ExcludeFromTotalsField({ id, checked, onChange }: { id: string; checked
           Non conta come liquidità reale
         </Label>
       </div>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="text-xs text-ink-500 dark:text-ink-400">
         Per benefit come i ticket pasto: le spese restano visibili per categoria, ma questo conto non entra in
         &quot;Disponibile&quot; né nel Budget mensile.
       </p>
@@ -87,7 +87,7 @@ function StatementDayField({
     <div className="flex flex-col gap-2">
       <Label htmlFor={id}>Giorno di fatturazione (1-31)</Label>
       <Input id={id} type="number" min={1} max={31} value={value} onChange={(e) => onChange(e.target.value)} required />
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="text-xs text-ink-500 dark:text-ink-400">
         Un acquisto oggi verrà addebitato a questo giorno del mese successivo, non subito.
       </p>
     </div>
@@ -148,8 +148,8 @@ function AccountRow({ account }: { account: AccountListItem }) {
         <DialogTrigger
           render={
             <button type="button" className="min-w-0 flex-1 rounded-md text-left hover:opacity-70">
-              <p className="truncate font-medium text-zinc-950 dark:text-zinc-50">{account.name}</p>
-              <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="truncate font-medium text-ink-950 dark:text-ink-50">{account.name}</p>
+              <p className="truncate text-sm text-ink-500 dark:text-ink-400">
                 {ACCOUNT_TYPE_LABELS[account.type as AccountType]} · {currencyFormatter.format(Number(account.balance))}
                 {account.excludeFromTotals && " · non conta come liquidità"}
                 {account.archived && " · Archiviato"}
@@ -181,7 +181,7 @@ function AccountRow({ account }: { account: AccountListItem }) {
                 value={openingBalance}
                 onChange={(e) => setOpeningBalance(e.target.value)}
               />
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Il saldo mostrato nella lista è questo valore + le spese/entrate registrate da allora.
               </p>
             </div>
@@ -260,7 +260,7 @@ export function AccountsManager() {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">I tuoi conti</h2>
+        <h2 className="text-lg font-semibold text-ink-950 dark:text-ink-50">I tuoi conti</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button>+ Nuovo conto</Button>} />
           <DialogContent>
@@ -303,9 +303,9 @@ export function AccountsManager() {
         </Dialog>
       </div>
 
-      {isLoading && <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>}
+      {isLoading && <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>}
       {!isLoading && accounts?.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           Nessun conto ancora — creane uno per iniziare a registrare le spese.
         </p>
       )}

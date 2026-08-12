@@ -54,11 +54,11 @@ function CategoryRow({
           render={
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-ink-100 dark:hover:bg-ink-800"
             >
               <span className="shrink-0 text-lg leading-none">{category.icon || "🏷️"}</span>
               <span
-                className={`truncate ${indented ? "text-sm text-zinc-600 dark:text-zinc-300" : "font-medium text-zinc-950 dark:text-zinc-50"}`}
+                className={`truncate ${indented ? "text-sm text-ink-600 dark:text-ink-300" : "font-medium text-ink-950 dark:text-ink-50"}`}
               >
                 {category.name}
               </span>
@@ -131,7 +131,7 @@ export function CategoriesManager() {
   return (
     <div className="flex w-full max-w-xl flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Categorie</h2>
+        <h2 className="text-lg font-semibold text-ink-950 dark:text-ink-50">Categorie</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button>+ Nuova categoria</Button>} />
           <DialogContent>
@@ -174,9 +174,9 @@ export function CategoriesManager() {
         </Dialog>
       </div>
 
-      {isLoading && <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>}
+      {isLoading && <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>}
       {!isLoading && topLevel.length === 0 && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-ink-500 dark:text-ink-400">
           Nessuna categoria ancora — creane una per iniziare a classificare le spese.
         </p>
       )}
@@ -186,7 +186,7 @@ export function CategoriesManager() {
           <Card key={category.id} className="flex flex-col gap-2 p-4">
             <CategoryRow category={category} />
             {childrenOf(category.id).length > 0 && (
-              <div className="flex flex-col gap-1 border-l border-zinc-200 pl-3 dark:border-zinc-800">
+              <div className="flex flex-col gap-1 border-l border-ink-200 pl-3 dark:border-ink-800">
                 {childrenOf(category.id).map((child) => (
                   <CategoryRow key={child.id} category={child} indented />
                 ))}

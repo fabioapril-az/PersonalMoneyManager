@@ -32,19 +32,17 @@ type CategoryBreakdownItem = {
 // schema ma oggi non c'è un picker per impostarlo (solo l'icona) — finché non
 // c'è, ogni fetta prende un colore per posizione (ciclico se le categorie
 // superano la tavolozza), stabile perché categoryBreakdown è sempre ordinato
-// per importo decrescente.
+// per importo decrescente. Stessa tavolozza di "Fresh Slate, Brillante"
+// (teal/corallo/ambra + le stesse tinte extra usate nel mockup di confronto).
 const CHART_COLORS = [
-  "#f87171",
-  "#fb923c",
-  "#fbbf24",
-  "#facc15",
-  "#a3e635",
-  "#4ade80",
-  "#2dd4bf",
-  "#38bdf8",
-  "#818cf8",
-  "#c084fc",
-  "#f472b6",
+  "#00b8a9",
+  "#ff6b4a",
+  "#ffb100",
+  "#7c5cfc",
+  "#2da9ff",
+  "#8bd450",
+  "#ff4fa3",
+  "#009488",
 ];
 
 // Torta via conic-gradient CSS puro — nessuna libreria di grafici, stesso
@@ -90,11 +88,11 @@ function CategoryRow({ item, color }: { item: CategoryBreakdownItem; color: stri
       >
         {item.percent.toFixed(0)}%
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">
+      <span className="min-w-0 flex-1 truncate text-sm text-ink-800 dark:text-ink-200">
         {item.icon ? `${item.icon} ` : ""}
         {item.name}
       </span>
-      <span className="shrink-0 text-sm font-medium text-zinc-950 dark:text-zinc-50">{formatAmount(item.amount)}</span>
+      <span className="shrink-0 text-sm font-medium text-ink-950 dark:text-ink-50">{formatAmount(item.amount)}</span>
     </div>
   );
 }
@@ -114,12 +112,12 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+      <div className="flex items-center gap-4 text-xs text-ink-500 dark:text-ink-400">
         <span className="flex items-center gap-1">
-          <span className="size-2 rounded-full bg-emerald-500 dark:bg-emerald-400" /> Entrate
+          <span className="size-2 rounded-full bg-teal-500 dark:bg-teal-400" /> Entrate
         </span>
         <span className="flex items-center gap-1">
-          <span className="size-2 rounded-full bg-red-500 dark:bg-red-400" /> Spese
+          <span className="size-2 rounded-full bg-coral-500 dark:bg-coral-400" /> Spese
         </span>
       </div>
       <div className="flex items-end justify-between gap-2">
@@ -135,10 +133,10 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
               )} · Spese ${formatAmount(t.totalExpense)}`}
             >
               <div className="flex items-end gap-1" style={{ height: maxBarHeight }}>
-                <div className="w-2.5 rounded-t bg-emerald-500 dark:bg-emerald-400" style={{ height: incomeHeight }} />
-                <div className="w-2.5 rounded-t bg-red-500 dark:bg-red-400" style={{ height: expenseHeight }} />
+                <div className="w-2.5 rounded-t bg-teal-500 dark:bg-teal-400" style={{ height: incomeHeight }} />
+                <div className="w-2.5 rounded-t bg-coral-500 dark:bg-coral-400" style={{ height: expenseHeight }} />
               </div>
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              <span className="text-[10px] text-ink-500 dark:text-ink-400">
                 {monthFormatter.format(new Date(t.period.start))}
               </span>
             </div>
@@ -185,7 +183,7 @@ export function ReportClient() {
   const { data, isLoading } = trpc.report.summary.useQuery({ referenceDate, granularity });
 
   if (isLoading || !data) {
-    return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
+    return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
   }
 
   const { period, windowStart, windowEnd, isCurrentPeriod, totalExpense, totalIncome, categoryBreakdown, trend } = data;
@@ -216,13 +214,13 @@ export function ReportClient() {
   return (
     <div className="flex w-full max-w-xl flex-col gap-8">
       <div className="flex flex-col gap-3 text-center">
-        <h1 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Report</h1>
+        <h1 className="text-lg font-semibold text-ink-950 dark:text-ink-50">Report</h1>
         <GranularitySelector value={granularity} onChange={setGranularity} />
         <div className="flex items-center justify-center gap-2">
           <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousWindow} aria-label="Periodo precedente">
             <ChevronLeft className="size-4" />
           </Button>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="text-sm text-ink-600 dark:text-ink-300">
             {dateFormatter.format(new Date(windowStart))} → {dateFormatter.format(new Date(windowEnd))}
           </p>
           <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextWindow} aria-label="Periodo successivo">
@@ -230,7 +228,7 @@ export function ReportClient() {
           </Button>
         </div>
         {!isCurrentPeriod && (
-          <button type="button" className="text-xs text-zinc-500 hover:underline dark:text-zinc-400" onClick={goToCurrentWindow}>
+          <button type="button" className="text-xs text-ink-500 hover:underline dark:text-ink-400" onClick={goToCurrentWindow}>
             Torna a oggi
           </button>
         )}
@@ -239,17 +237,17 @@ export function ReportClient() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-center gap-8">
           <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">Entrate</span>
-            <span className="text-lg font-semibold text-zinc-500 dark:text-zinc-400">{formatAmount(totalIncome)}</span>
+            <span className="text-xs text-ink-500 dark:text-ink-400">Entrate</span>
+            <span className="text-lg font-semibold text-ink-500 dark:text-ink-400">{formatAmount(totalIncome)}</span>
           </div>
           <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">Spese</span>
-            <span className="text-lg font-semibold text-red-600 dark:text-red-400">{formatAmount(totalExpense)}</span>
+            <span className="text-xs text-ink-500 dark:text-ink-400">Spese</span>
+            <span className="text-lg font-semibold text-coral-600 dark:text-coral-400">{formatAmount(totalExpense)}</span>
           </div>
         </div>
 
         {categoryBreakdown.length === 0 ? (
-          <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">Nessuna spesa in questo periodo.</p>
+          <p className="text-center text-sm text-ink-500 dark:text-ink-400">Nessuna spesa in questo periodo.</p>
         ) : (
           <>
             <CategoryPieChart items={categoryBreakdown} />
@@ -263,7 +261,7 @@ export function ReportClient() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Andamento (ultimi {trend.length} periodi)</h2>
+        <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Andamento (ultimi {trend.length} periodi)</h2>
         <Card className="p-4">
           <TrendChart trend={trend} />
         </Card>

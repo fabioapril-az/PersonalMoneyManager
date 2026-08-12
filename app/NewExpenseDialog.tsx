@@ -168,7 +168,7 @@ export function NewExpenseDialog() {
               </SelectContent>
             </Select>
             {categoryOptions.length === 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Nessuna categoria — creane una in &quot;Categorie&quot; prima di continuare.
               </p>
             )}
@@ -188,12 +188,12 @@ export function NewExpenseDialog() {
               </SelectContent>
             </Select>
             {activeAccounts.length === 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Nessun conto — creane uno in &quot;Conti&quot; prima di continuare.
               </p>
             )}
             {statementPreview && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 Verrà addebitata il {statementDateFormatter.format(statementPreview)}, non subito.
               </p>
             )}
@@ -239,7 +239,7 @@ export function NewExpenseDialog() {
                 required
               />
               {installmentAmounts && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-ink-500 dark:text-ink-400">
                   {installmentAmounts.length} rate: la 1ª (
                   {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(
                     installmentAmounts[0]

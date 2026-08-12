@@ -38,8 +38,8 @@ export function EmojiPicker({ value, onChange }: { value: string; onChange: (val
             type="button"
             onClick={() => onChange(emoji)}
             aria-pressed={value === emoji}
-            className={`flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-              value === emoji ? "bg-zinc-200 ring-2 ring-zinc-950 dark:bg-zinc-700 dark:ring-zinc-50" : ""
+            className={`flex h-8 w-8 items-center justify-center rounded-md text-lg transition-colors hover:bg-ink-100 dark:hover:bg-ink-800 ${
+              value === emoji ? "bg-ink-200 ring-2 ring-ink-950 dark:bg-ink-700 dark:ring-ink-50" : ""
             }`}
           >
             {emoji}
