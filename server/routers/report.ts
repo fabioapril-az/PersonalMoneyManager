@@ -94,6 +94,10 @@ export const reportRouter = router({
       period,
       isCurrentPeriod,
       totalExpense,
+      // trend copre sempre anche il periodo mostrato (è l'ultimo elemento,
+      // il più recente) — evita una query di aggregazione in più solo per
+      // questo numero.
+      totalIncome: trend[trend.length - 1]?.totalIncome ?? new Prisma.Decimal(0),
       categoryBreakdown,
       trend,
     };

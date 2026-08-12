@@ -25,25 +25,73 @@ type CategoryBreakdownItem = {
   percent: number;
 };
 
-// Barra relativa alla categoria più spesa del periodo (non al totale): così
-// anche una sola categoria che vale il 90% delle spese riempie la barra
-// senza schiacciare visivamente tutte le altre a zero.
-function CategoryBar({ item, maxAmount }: { item: CategoryBreakdownItem; maxAmount: number }) {
-  const widthPct = maxAmount > 0 ? (Number(item.amount) / maxAmount) * 100 : 0;
+// Una tavolozza fissa, non i colori dell'utente: Category.color esiste nello
+// schema ma oggi non c'è un picker per impostarlo (solo l'icona) — finché non
+// c'è, ogni fetta prende un colore per posizione (ciclico se le categorie
+// superano la tavolozza), stabile perché categoryBreakdown è sempre ordinato
+// per importo decrescente.
+const CHART_COLORS = [
+  "#f87171",
+  "#fb923c",
+  "#fbbf24",
+  "#facc15",
+  "#a3e635",
+  "#4ade80",
+  "#2dd4bf",
+  "#38bdf8",
+  "#818cf8",
+  "#c084fc",
+  "#f472b6",
+];
+
+// Torta via conic-gradient CSS puro — nessuna libreria di grafici, stesso
+// principio di BudgetBar/TrendChart. L'ultima fetta arriva sempre esattamente
+// al 100% (non alla somma degli step precedenti): la somma dei percent
+// arrotondati singolarmente potrebbe non fare esattamente 100, lasciando
+// altrimenti uno spicchio vuoto visibile all'inizio/fine del cerchio.
+function CategoryPieChart({ items }: { items: CategoryBreakdownItem[] }) {
+  // Somme cumulative senza mutare una variabile locale nel map (il linter
+  // di React Compiler lo segnala anche se qui sarebbe innocuo, essendo
+  // locale a questo render) — un prefix-sum immutabile calcolato a parte.
+  const cumulativeEnds = items.reduce<number[]>((acc, item) => {
+    const previous = acc.length > 0 ? acc[acc.length - 1] : 0;
+    return [...acc, previous + item.percent];
+  }, []);
+
+  const stops = items.map((item, index) => {
+    const color = CHART_COLORS[index % CHART_COLORS.length];
+    const start = index === 0 ? 0 : cumulativeEnds[index - 1];
+    const end = index === items.length - 1 ? 100 : cumulativeEnds[index];
+    return `${color} ${start}% ${end}%`;
+  });
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="min-w-0 truncate text-zinc-800 dark:text-zinc-200">
-          {item.icon ? `${item.icon} ` : ""}
-          {item.name}
-        </span>
-        <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
-          {formatAmount(item.amount)} · {item.percent.toFixed(0)}%
-        </span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-800">
-        <div className="h-2 rounded-full bg-red-500 dark:bg-red-400" style={{ width: `${widthPct}%` }} />
-      </div>
+    <div
+      className="mx-auto size-48 shrink-0 rounded-full"
+      style={{ background: `conic-gradient(${stops.join(", ")})` }}
+      role="img"
+      aria-label="Ripartizione delle spese per categoria"
+    />
+  );
+}
+
+// Legenda sotto la torta: stesso colore della fetta come badge percentuale,
+// non più una barra — la torta è già il confronto visivo, questa lista serve
+// solo a leggere nome/importo esatti.
+function CategoryRow({ item, color }: { item: CategoryBreakdownItem; color: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className="flex h-6 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-white"
+        style={{ backgroundColor: color }}
+      >
+        {item.percent.toFixed(0)}%
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-200">
+        {item.icon ? `${item.icon} ` : ""}
+        {item.name}
+      </span>
+      <span className="shrink-0 text-sm font-medium text-zinc-950 dark:text-zinc-50">{formatAmount(item.amount)}</span>
     </div>
   );
 }
@@ -109,7 +157,7 @@ export function ReportClient() {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
   }
 
-  const { period, isCurrentPeriod, totalExpense, categoryBreakdown, trend } = data;
+  const { period, isCurrentPeriod, totalExpense, totalIncome, categoryBreakdown, trend } = data;
 
   function goToPreviousPeriod() {
     const previous = new Date(period.start);
@@ -124,8 +172,6 @@ export function ReportClient() {
   function goToCurrentPeriod() {
     setReferenceDate(undefined);
   }
-
-  const maxCategoryAmount = categoryBreakdown.length > 0 ? Number(categoryBreakdown[0].amount) : 0;
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-8">
@@ -149,18 +195,29 @@ export function ReportClient() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          Dove ho speso — {formatAmount(totalExpense)}
-        </h2>
-        {categoryBreakdown.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Nessuna spesa in questo periodo.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {categoryBreakdown.map((item) => (
-              <CategoryBar key={item.categoryId} item={item} maxAmount={maxCategoryAmount} />
-            ))}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-center gap-8">
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Entrate</span>
+            <span className="text-lg font-semibold text-zinc-500 dark:text-zinc-400">{formatAmount(totalIncome)}</span>
           </div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Spese</span>
+            <span className="text-lg font-semibold text-red-600 dark:text-red-400">{formatAmount(totalExpense)}</span>
+          </div>
+        </div>
+
+        {categoryBreakdown.length === 0 ? (
+          <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">Nessuna spesa in questo periodo.</p>
+        ) : (
+          <>
+            <CategoryPieChart items={categoryBreakdown} />
+            <div className="flex flex-col gap-2">
+              {categoryBreakdown.map((item, index) => (
+                <CategoryRow key={item.categoryId} item={item} color={CHART_COLORS[index % CHART_COLORS.length]} />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
