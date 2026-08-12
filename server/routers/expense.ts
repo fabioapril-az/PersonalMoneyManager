@@ -20,6 +20,20 @@ const createExpenseSchema = z.object({
 const updateExpenseSchema = createExpenseSchema.extend({ id: z.string() });
 
 export const expenseRouter = router({
+  // Per aprire la modifica di una spesa referenziata da fuori dal suo
+  // periodo — es. una rata in "Rate in Corso" o una riga in "Cosa concorre
+  // al Budget" può riferirsi a una spesa decisa in un periodo precedente,
+  // quindi non presente tra i dati già caricati (period-scoped) del
+  // dashboard corrente. Stessa forma di EditableExpense (EditExpenseDialog.tsx).
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+    const expense = await ctx.prisma.expense.findFirst({
+      where: { id: input.id, userId: ctx.userId },
+      include: { paymentPlan: { select: { accountId: true, installmentsCount: true } } },
+    });
+    if (!expense) throw new TRPCError({ code: "NOT_FOUND" });
+    return expense;
+  }),
+
   listCurrentPeriod: protectedProcedure.query(({ ctx }) => {
     const period = getCurrentFinancialPeriod();
     return ctx.prisma.expense.findMany({

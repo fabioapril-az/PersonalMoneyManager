@@ -67,7 +67,11 @@ export const dashboardRouter = router({
               select: {
                 installmentsCount: true,
                 account: { select: { name: true } },
-                expense: { select: { description: true, category: { select: { icon: true, name: true } } } },
+                // id: serve solo per aprire la modifica della spesa da
+                // "Cosa concorre al Budget" (BudgetBreakdownSection) anche
+                // quando è stata decisa in un periodo diverso da quello
+                // mostrato — vedi expense.getById.
+                expense: { select: { id: true, description: true, category: { select: { icon: true, name: true } } } },
               },
             },
           },
@@ -130,6 +134,7 @@ export const dashboardRouter = router({
       const budgetLines = [
         ...budgetExpenses.map((e) => ({
           id: e.id,
+          expenseId: e.id,
           date: e.date,
           description: e.description,
           categoryIcon: e.category.icon,
@@ -140,6 +145,10 @@ export const dashboardRouter = router({
         })),
         ...schedulesDueInPeriod.map((s) => ({
           id: s.id,
+          // La riga è identificata dalla PaymentSchedule (id, usato come React
+          // key), ma per aprirne la modifica serve la vera Expense a monte —
+          // vedi il commento sopra sull'include di expense.id.
+          expenseId: s.paymentPlan.expense.id,
           date: s.dueDate,
           description: s.paymentPlan.expense.description,
           categoryIcon: s.paymentPlan.expense.category.icon,

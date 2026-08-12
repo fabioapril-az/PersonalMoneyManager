@@ -48,6 +48,7 @@ type CashMovementItem = {
 
 type BudgetLineItem = {
   id: string;
+  expenseId: string;
   date: Date | string;
   description: string;
   categoryIcon: string | null;
@@ -100,7 +101,17 @@ function CollapsibleSection({
 // identica selezione di budgetSpent (server/routers/dashboard.ts), riga per
 // riga — una spesa a rate qui appare per la sola rata di competenza di
 // questo periodo, non per l'importo intero come in "Spese e entrate".
-function BudgetBreakdownSection({ lines }: { lines: BudgetLineItem[] }) {
+// Cliccabile: la spesa a monte può essere stata decisa in un periodo diverso
+// da quello mostrato (una rata in scadenza ora, comprata il mese scorso), e
+// "Spese e entrate" (scoped al periodo corrente) non basterebbe a trovarla —
+// vedi expense.getById.
+function BudgetBreakdownSection({
+  lines,
+  onEditExpense,
+}: {
+  lines: BudgetLineItem[];
+  onEditExpense: (expenseId: string) => void;
+}) {
   if (lines.length === 0) return null;
 
   return (
@@ -108,26 +119,28 @@ function BudgetBreakdownSection({ lines }: { lines: BudgetLineItem[] }) {
       <div className="flex flex-col gap-2">
         <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
-          d&apos;acquisto, rate alla loro scadenza.
+          d&apos;acquisto, rate alla loro scadenza. Clicca per modificare la spesa.
         </p>
         {lines.map((line) => (
-          <Card key={line.id} className="flex flex-row items-center justify-between gap-2 p-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
-                {line.categoryIcon ? `${line.categoryIcon} ` : ""}
-                {line.description}
-                {line.installment && ` · rata ${line.installment.no}/${line.installment.count}`}
-              </p>
-              <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                {line.accountName ? `${line.accountName} · ` : ""}
-                {dateFormatter.format(new Date(line.date))}
-                {line.installment ? " (scadenza)" : ""}
-              </p>
-            </div>
-            <span className="shrink-0 text-sm font-medium text-red-600 dark:text-red-400">
-              {formatAmount(-Number(line.amount))}
-            </span>
-          </Card>
+          <button key={line.id} type="button" className="w-full text-left" onClick={() => onEditExpense(line.expenseId)}>
+            <Card className="flex flex-row items-center justify-between gap-2 p-3 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
+                  {line.categoryIcon ? `${line.categoryIcon} ` : ""}
+                  {line.description}
+                  {line.installment && ` · rata ${line.installment.no}/${line.installment.count}`}
+                </p>
+                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {line.accountName ? `${line.accountName} · ` : ""}
+                  {dateFormatter.format(new Date(line.date))}
+                  {line.installment ? " (scadenza)" : ""}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-medium text-red-600 dark:text-red-400">
+                {formatAmount(-Number(line.amount))}
+              </span>
+            </Card>
+          </button>
         ))}
       </div>
     </CollapsibleSection>
@@ -143,14 +156,28 @@ type PendingScheduleItem = {
     type: string;
     installmentsCount: number | null;
     account: { name: string };
-    expense: { description: string; category: { icon: string | null } };
+    expense: { id: string; description: string; category: { icon: string | null } };
   };
 };
 
-function PendingScheduleCard({ schedule, onMarkPaid, disabled }: { schedule: PendingScheduleItem; onMarkPaid: () => void; disabled: boolean }) {
+// La descrizione/data è un bottone separato da "Segna pagato" (non l'intera
+// Card, che non può contenere un <button> annidato in un altro) — apre la
+// modifica della spesa a monte, utile perché può essere stata decisa in un
+// periodo diverso da quello mostrato.
+function PendingScheduleCard({
+  schedule,
+  onMarkPaid,
+  onEdit,
+  disabled,
+}: {
+  schedule: PendingScheduleItem;
+  onMarkPaid: () => void;
+  onEdit: () => void;
+  disabled: boolean;
+}) {
   return (
     <Card className="flex flex-row items-center justify-between gap-2 p-3">
-      <div className="min-w-0">
+      <button type="button" className="min-w-0 flex-1 text-left hover:opacity-70" onClick={onEdit}>
         <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
           {schedule.paymentPlan.expense.category.icon ? `${schedule.paymentPlan.expense.category.icon} ` : ""}
           {schedule.paymentPlan.expense.description}
@@ -160,7 +187,7 @@ function PendingScheduleCard({ schedule, onMarkPaid, disabled }: { schedule: Pen
         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
           {schedule.paymentPlan.account.name} · addebito {dateFormatter.format(new Date(schedule.dueDate))}
         </p>
-      </div>
+      </button>
       <div className="flex shrink-0 items-center gap-2">
         <span className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{formatAmount(schedule.amount)}</span>
         <Button size="sm" variant="outline" disabled={disabled} onClick={onMarkPaid}>
@@ -178,7 +205,7 @@ function PendingScheduleCard({ schedule, onMarkPaid, disabled }: { schedule: Pen
 // quindi qui non compaiono più addebiti scaduti (settleOverdueCardCharges
 // li salda da soli prima di questa query, vedi server/routers/paymentSchedule.ts),
 // solo quelli futuri non ancora dovuti.
-function PendingSchedulesSection() {
+function PendingSchedulesSection({ onEditExpense }: { onEditExpense: (expenseId: string) => void }) {
   const utils = trpc.useUtils();
   const { data: pending, isLoading } = trpc.paymentSchedule.listPending.useQuery();
 
@@ -211,6 +238,7 @@ function PendingSchedulesSection() {
                 schedule={schedule}
                 disabled={markPaid.isPending}
                 onMarkPaid={() => markPaid.mutate({ id: schedule.id })}
+                onEdit={() => onEditExpense(schedule.paymentPlan.expense.id)}
               />
             ))}
           </div>
@@ -229,6 +257,7 @@ function PendingSchedulesSection() {
                 schedule={schedule}
                 disabled={markPaid.isPending}
                 onMarkPaid={() => markPaid.mutate({ id: schedule.id })}
+                onEdit={() => onEditExpense(schedule.paymentPlan.expense.id)}
               />
             ))}
           </div>
@@ -314,12 +343,27 @@ function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) 
 }
 
 export function DashboardClient() {
+  const utils = trpc.useUtils();
   // undefined => periodo corrente (il server sceglie "oggi"); una volta che
   // si naviga altrove diventa una data concreta dentro il periodo mostrato.
   const [referenceDate, setReferenceDate] = useState<Date | undefined>(undefined);
   const { data, isLoading } = trpc.dashboard.summary.useQuery({ referenceDate });
   const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
   const [editingIncome, setEditingIncome] = useState<EditableIncome | null>(null);
+
+  // "Rate in corso"/"Carta di credito in attesa" e "Cosa concorre al
+  // Budget" possono riferirsi a una spesa decisa in un periodo diverso da
+  // quello mostrato — periodExpenses (scoped al periodo corrente) non
+  // basterebbe a trovarla, quindi la si recupera al volo con expense.getById
+  // invece di limitarsi ai dati già caricati.
+  async function handleEditExpenseById(expenseId: string) {
+    try {
+      const expense = await utils.expense.getById.fetch({ id: expenseId });
+      setEditingExpense(expense);
+    } catch {
+      toast.error("Impossibile trovare la spesa.");
+    }
+  }
 
   if (isLoading || !data) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Caricamento…</p>;
@@ -463,7 +507,7 @@ export function DashboardClient() {
         </div>
       </CollapsibleSection>
 
-      <PendingSchedulesSection />
+      <PendingSchedulesSection onEditExpense={handleEditExpenseById} />
 
       <CashMovementsSection movements={cashMovements} />
 
@@ -537,7 +581,7 @@ export function DashboardClient() {
         )}
       </div>
 
-      <BudgetBreakdownSection lines={budgetLines} />
+      <BudgetBreakdownSection lines={budgetLines} onEditExpense={handleEditExpenseById} />
 
       <EditExpenseDialog
         key={editingExpense?.id ?? "none"}
