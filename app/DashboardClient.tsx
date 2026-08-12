@@ -113,10 +113,14 @@ function CollapsibleSection({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" className="flex items-center justify-between" onClick={() => setOpen((v) => !v)}>
-        <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">{title}</h2>
+      <button
+        type="button"
+        className="flex w-full items-center justify-between rounded-xl border border-ink-200 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-ink-50 dark:border-ink-800 dark:bg-ink-900 dark:hover:bg-ink-800"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <h2 className="text-sm font-medium text-ink-800 dark:text-ink-100">{title}</h2>
         <ChevronDown
-          className={`size-4 shrink-0 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`size-4 shrink-0 text-teal-600 transition-transform dark:text-teal-400 ${open ? "rotate-180" : ""}`}
         />
       </button>
       {open && children}
@@ -144,10 +148,6 @@ function BudgetBreakdownSection({
   return (
     <CollapsibleSection title={`Cosa concorre al Budget (${lines.length})`} defaultOpen>
       <div className="flex flex-col gap-2">
-        <p className="text-xs text-ink-400 dark:text-ink-500">
-          Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
-          d&apos;acquisto, rate alla loro scadenza. Clicca per modificare la spesa.
-        </p>
         {lines.map((line) => (
           <button key={line.id} type="button" className="w-full text-left" onClick={() => onEditExpense(line.expenseId)}>
             <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
@@ -171,6 +171,10 @@ function BudgetBreakdownSection({
             </Card>
           </button>
         ))}
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
+          d&apos;acquisto, rate alla loro scadenza. Clicca per modificare la spesa.
+        </p>
       </div>
     </CollapsibleSection>
   );
@@ -260,9 +264,6 @@ function PendingSchedulesSection({ onEditExpense }: { onEditExpense: (expenseId:
       {installments.length > 0 && (
         <CollapsibleSection title={`Rate in corso (${installments.length})`}>
           <div className="flex flex-col gap-2">
-            <p className="text-xs text-ink-400 dark:text-ink-500">
-              Rate non ancora saldate — segnale pagate a mano quando arriva l&apos;addebito reale.
-            </p>
             {installments.map((schedule) => (
               <PendingScheduleCard
                 key={schedule.id}
@@ -272,16 +273,15 @@ function PendingSchedulesSection({ onEditExpense }: { onEditExpense: (expenseId:
                 onEdit={() => onEditExpense(schedule.paymentPlan.expense.id)}
               />
             ))}
+            <p className="text-xs text-ink-400 dark:text-ink-500">
+              Rate non ancora saldate — segnale pagate a mano quando arriva l&apos;addebito reale.
+            </p>
           </div>
         </CollapsibleSection>
       )}
       {cardCharges.length > 0 && (
         <CollapsibleSection title={`Carta di credito in attesa (${cardCharges.length})`}>
           <div className="flex flex-col gap-2">
-            <p className="text-xs text-ink-400 dark:text-ink-500">
-              Acquisti non ancora fatturati — verranno saldati da soli alla data di addebito, nessuna azione
-              richiesta (il pulsante serve solo se sai già che è avvenuto prima del previsto).
-            </p>
             {cardCharges.map((schedule) => (
               <PendingScheduleCard
                 key={schedule.id}
@@ -291,6 +291,10 @@ function PendingSchedulesSection({ onEditExpense }: { onEditExpense: (expenseId:
                 onEdit={() => onEditExpense(schedule.paymentPlan.expense.id)}
               />
             ))}
+            <p className="text-xs text-ink-400 dark:text-ink-500">
+              Acquisti non ancora fatturati — verranno saldati da soli alla data di addebito, nessuna azione
+              richiesta (il pulsante serve solo se sai già che è avvenuto prima del previsto).
+            </p>
           </div>
         </CollapsibleSection>
       )}
@@ -319,10 +323,6 @@ function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) 
   return (
     <CollapsibleSection title={`Movimenti di cassa (${movements.length})`}>
       <div className="flex flex-col gap-2">
-        <p className="text-xs text-ink-400 dark:text-ink-500">
-          Quello che è successo davvero sui conti in questo periodo — comprese rate e addebiti carta saldati ora,
-          anche se decisi in un periodo precedente.
-        </p>
         {movements.map((movement) => {
           const schedule = movement.paymentSchedule;
           const category = schedule?.paymentPlan.expense.category;
@@ -373,6 +373,10 @@ function CashMovementsSection({ movements }: { movements: CashMovementItem[] }) 
             </Card>
           );
         })}
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Quello che è successo davvero sui conti in questo periodo — comprese rate e addebiti carta saldati ora,
+          anche se decisi in un periodo precedente.
+        </p>
       </div>
     </CollapsibleSection>
   );
@@ -544,6 +548,10 @@ export function DashboardClient() {
               </span>
             </Card>
           ))}
+          <p className="text-xs text-ink-400 dark:text-ink-500">
+            Saldo iniziale + movimenti registrati su ogni conto — per cambiare il saldo iniziale vai su
+            &quot;Conti&quot;.
+          </p>
         </div>
       </CollapsibleSection>
 
@@ -553,9 +561,6 @@ export function DashboardClient() {
 
       <CollapsibleSection title={`Spese e entrate (${movements.length})`}>
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-ink-400 dark:text-ink-500">
-            Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
-          </p>
           {movements.length === 0 && (
             <p className="text-sm text-ink-500 dark:text-ink-400">
               Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.
@@ -593,6 +598,9 @@ export function DashboardClient() {
               </Card>
             </button>
           ))}
+          <p className="text-xs text-ink-400 dark:text-ink-500">
+            Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
+          </p>
         </div>
       </CollapsibleSection>
 
