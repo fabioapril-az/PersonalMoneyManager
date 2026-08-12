@@ -15,10 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayInputValue } from "@/lib/domain/dateInput";
 
 // Un trasferimento tra due tuoi conti (es. ricarica Satispay dal conto
 // corrente) — Rule 2: non è una spesa né un'entrata, quindi niente form

@@ -175,8 +175,13 @@ export const dashboardRouter = router({
         budgetSpent,
         budgetLines,
         accounts,
-        recentExpenses: expenses.slice(0, 5),
-        recentIncomes: incomes.slice(0, 5),
+        // Tutte quelle del periodo, non solo le ultime 5 — "Spese e entrate"
+        // era l'unico modo per trovare e correggere una voce già inserita
+        // (es. data sbagliata), e un tetto di 5 la rendeva impossibile da
+        // trovare appena si superava quella soglia. È comunque comprimibile
+        // (app/DashboardClient.tsx), quindi non occupa spazio se non serve.
+        periodExpenses: expenses,
+        periodIncomes: incomes,
         cashMovements,
       };
     }),

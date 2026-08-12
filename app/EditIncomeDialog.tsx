@@ -8,10 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-function toDateInputValue(date: Date | string) {
-  return new Date(date).toISOString().slice(0, 10);
-}
+import { toDateInputValue } from "@/lib/domain/dateInput";
 
 export type EditableIncome = {
   id: string;

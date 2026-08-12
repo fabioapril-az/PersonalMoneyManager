@@ -18,12 +18,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { computeCardStatementDate } from "@/lib/domain/creditCard";
 import { splitIntoInstallments } from "@/lib/domain/installments";
+import { todayInputValue } from "@/lib/domain/dateInput";
 
+// Nessun timeZone: "UTC" qui — a differenza di dateFormatter in
+// DashboardClient.tsx, questa formatta un'anteprima calcolata interamente
+// lato client a partire dall'input dell'utente (stesso fuso di chi la
+// guarda), quindi forzare UTC introdurrebbe un disallineamento invece di
+// risolverlo.
 const statementDateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
-
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // Categoria + sottocategoria (PRD sezione 4) come lista piatta con
 // indentazione visiva — solo 2 livelli, non serve un tree component.

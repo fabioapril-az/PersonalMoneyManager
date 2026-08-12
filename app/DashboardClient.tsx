@@ -15,7 +15,12 @@ import { NewTransferDialog } from "./NewTransferDialog";
 import { EditExpenseDialog, type EditableExpense } from "./EditExpenseDialog";
 import { EditIncomeDialog, type EditableIncome } from "./EditIncomeDialog";
 
-const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
+// timeZone: "UTC" — ogni data che l'app salva è mezzanotte UTC del giorno di
+// calendario scelto (un <input type="date"> "YYYY-MM-DD" è sempre parsato
+// come UTC). Senza forzarlo qui, il browser la reinterpreta nel proprio
+// fuso: 23:59:59.999 UTC (fine periodo) + 2h (CEST) diventa il giorno dopo —
+// il bug per cui il periodo sembrava finire il 27 invece del 26.
+const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", timeZone: "UTC" });
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
 function formatAmount(value: unknown) {
@@ -329,8 +334,8 @@ export function DashboardClient() {
     budgetSpent,
     budgetLines,
     accounts,
-    recentExpenses,
-    recentIncomes,
+    periodExpenses,
+    periodIncomes,
     cashMovements,
   } = data;
 
@@ -354,8 +359,10 @@ export function DashboardClient() {
   // budgetSpent in server/routers/dashboard.ts.
   const budgetPercentUsed = budgetAmount ? (Number(budgetSpent) / budgetAmount) * 100 : 0;
 
-  const recentMovements = [
-    ...recentExpenses.map((e) => ({
+  // Tutte le voci del periodo, non solo le ultime 5 — vedi il commento su
+  // periodExpenses/periodIncomes in server/routers/dashboard.ts.
+  const movements = [
+    ...periodExpenses.map((e) => ({
       id: e.id,
       kind: "expense" as const,
       date: e.date,
@@ -372,7 +379,7 @@ export function DashboardClient() {
       amount: -Number(e.amount),
       raw: e,
     })),
-    ...recentIncomes.map((i) => ({
+    ...periodIncomes.map((i) => ({
       id: i.id,
       kind: "income" as const,
       date: i.date,
@@ -383,9 +390,7 @@ export function DashboardClient() {
       amount: Number(i.amount),
       raw: i,
     })),
-  ]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-8">
@@ -460,17 +465,17 @@ export function DashboardClient() {
 
       <CashMovementsSection movements={cashMovements} />
 
-      <CollapsibleSection title="Spese e entrate">
+      <CollapsibleSection title={`Spese e entrate (${movements.length})`}>
         <div className="flex flex-col gap-2">
           <p className="text-xs text-zinc-400 dark:text-zinc-500">
             Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
           </p>
-          {recentMovements.length === 0 && (
+          {movements.length === 0 && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Nessun movimento in questo periodo — usa i pulsanti sopra per iniziare.
             </p>
           )}
-          {recentMovements.map((movement) => (
+          {movements.map((movement) => (
             <button
               key={movement.id}
               type="button"

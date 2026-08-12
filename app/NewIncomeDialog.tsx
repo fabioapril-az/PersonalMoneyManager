@@ -15,10 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayInputValue } from "@/lib/domain/dateInput";
 
 export function NewIncomeDialog() {
   const utils = trpc.useUtils();

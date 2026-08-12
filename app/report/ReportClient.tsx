@@ -6,8 +6,11 @@ import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long" });
-const monthFormatter = new Intl.DateTimeFormat("it-IT", { month: "short" });
+// timeZone: "UTC" su entrambi — vedi il commento sull'omonimo dateFormatter
+// in DashboardClient.tsx: i confini di periodo sono mezzanotte UTC, senza
+// forzare il fuso qui il browser li fa scivolare al giorno dopo.
+const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", timeZone: "UTC" });
+const monthFormatter = new Intl.DateTimeFormat("it-IT", { month: "short", timeZone: "UTC" });
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
 function formatAmount(value: unknown) {

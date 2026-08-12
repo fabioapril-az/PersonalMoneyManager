@@ -9,10 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-
-function toDateInputValue(date: Date | string) {
-  return new Date(date).toISOString().slice(0, 10);
-}
+import { toDateInputValue } from "@/lib/domain/dateInput";
 
 function buildCategoryOptions(categories: { id: string; name: string; parentId: string | null; icon: string | null }[]) {
   const topLevel = categories.filter((c) => !c.parentId);
