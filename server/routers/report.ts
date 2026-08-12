@@ -51,7 +51,10 @@ export const reportRouter = router({
       }),
       ctx.prisma.expense.findMany({
         where: { userId: ctx.userId, date: { gte: windowStart, lte: windowEnd } },
-        select: { categoryId: true, amount: true },
+        // id/date/description in più rispetto al minimo che servirebbe al
+        // solo totale: per rispondere a "cosa è stato classificato così"
+        // cliccando una categoria — vedi categoryBreakdown[].expenses sotto.
+        select: { id: true, date: true, description: true, categoryId: true, amount: true },
       }),
       ctx.prisma.income.aggregate({
         where: { userId: ctx.userId, date: { gte: windowStart, lte: windowEnd } },
@@ -73,10 +76,28 @@ export const reportRouter = router({
     // comportamento groupBy dell'adapter mssql.
     const totalExpense = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
     const totalsByTopCategory = new Map<string, Prisma.Decimal>();
+    // Le spese vere e proprie dietro ogni fetta — una sottocategoria conta
+    // nel totale del suo genitore (topLevelOf), ma qui teniamo il nome della
+    // categoria effettivamente scelta (potrebbe essere la sottocategoria),
+    // non quello del genitore, per non perdere quel dettaglio nell'elenco.
+    const expensesByTopCategory = new Map<
+      string,
+      Array<{ id: string; date: Date; description: string; categoryName: string; amount: Prisma.Decimal }>
+    >();
     for (const expense of expenses) {
       const top = topLevelOf(expense.categoryId);
       if (!top) continue;
       totalsByTopCategory.set(top.id, (totalsByTopCategory.get(top.id) ?? new Prisma.Decimal(0)).plus(expense.amount));
+
+      const list = expensesByTopCategory.get(top.id) ?? [];
+      list.push({
+        id: expense.id,
+        date: expense.date,
+        description: expense.description,
+        categoryName: categoryById.get(expense.categoryId)!.name,
+        amount: expense.amount,
+      });
+      expensesByTopCategory.set(top.id, list);
     }
 
     const categoryBreakdown = Array.from(totalsByTopCategory.entries())
@@ -88,6 +109,7 @@ export const reportRouter = router({
           icon: category.icon,
           amount,
           percent: totalExpense.isZero() ? 0 : amount.div(totalExpense).times(100).toNumber(),
+          expenses: (expensesByTopCategory.get(categoryId) ?? []).sort((a, b) => b.date.getTime() - a.date.getTime()),
         };
       })
       .sort((a, b) => b.amount.comparedTo(a.amount));

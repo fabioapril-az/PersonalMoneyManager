@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,21 @@ function formatAmount(value: unknown) {
   return currencyFormatter.format(Number(value));
 }
 
+type CategoryExpenseItem = {
+  id: string;
+  date: Date | string;
+  description: string;
+  categoryName: string;
+  amount: unknown;
+};
+
 type CategoryBreakdownItem = {
   categoryId: string;
   name: string;
   icon: string | null;
   amount: unknown;
   percent: number;
+  expenses: CategoryExpenseItem[];
 };
 
 // Una tavolozza fissa, non i colori dell'utente: Category.color esiste nello
@@ -78,21 +87,54 @@ function CategoryPieChart({ items }: { items: CategoryBreakdownItem[] }) {
 
 // Legenda sotto la torta: stesso colore della fetta come badge percentuale,
 // non più una barra — la torta è già il confronto visivo, questa lista serve
-// solo a leggere nome/importo esatti.
+// solo a leggere nome/importo esatti. Cliccabile: risponde a "cosa è stato
+// classificato così" mostrando le spese vere e proprie dietro la fetta,
+// invece di fermarsi al totale.
 function CategoryRow({ item, color }: { item: CategoryBreakdownItem; color: string }) {
+  const [open, setOpen] = useState(false);
+  const hasExpenses = item.expenses.length > 0;
+
   return (
-    <div className="flex items-center gap-3">
-      <span
-        className="flex h-6 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-black"
-        style={{ backgroundColor: color }}
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        className="flex items-center gap-3 text-left disabled:cursor-default"
+        onClick={() => setOpen((v) => !v)}
+        disabled={!hasExpenses}
       >
-        {item.percent.toFixed(0)}%
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm text-ink-800 dark:text-ink-200">
-        {item.icon ? `${item.icon} ` : ""}
-        {item.name}
-      </span>
-      <span className="shrink-0 text-sm font-medium text-ink-950 dark:text-ink-50">{formatAmount(item.amount)}</span>
+        <span
+          className="flex h-6 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-black"
+          style={{ backgroundColor: color }}
+        >
+          {item.percent.toFixed(0)}%
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm text-ink-800 dark:text-ink-200">
+          {item.icon ? `${item.icon} ` : ""}
+          {item.name}
+        </span>
+        <span className="shrink-0 text-sm font-medium text-ink-950 dark:text-ink-50">{formatAmount(item.amount)}</span>
+        {hasExpenses && (
+          <ChevronDown className={`size-4 shrink-0 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        )}
+      </button>
+      {open && hasExpenses && (
+        <div className="flex flex-col gap-1 rounded-lg border border-ink-200 bg-white p-2 dark:border-ink-800 dark:bg-ink-900">
+          {item.expenses.map((expense) => (
+            <div key={expense.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-ink-800 dark:text-ink-200">{expense.description}</p>
+                <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+                  {dateFormatter.format(new Date(expense.date))}
+                  {expense.categoryName !== item.name ? ` · ${expense.categoryName}` : ""}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-medium text-coral-600 dark:text-coral-400">
+                {formatAmount(expense.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
