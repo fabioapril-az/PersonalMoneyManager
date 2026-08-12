@@ -207,12 +207,13 @@ export function DashboardClient() {
   const budgetPercentUsed = budgetAmount ? (Number(budgetSpent) / budgetAmount) * 100 : 0;
 
   return (
-    <div className="flex w-full max-w-2xl flex-col">
-      {/* Fisso in alto durante lo scroll (period/azioni/totali/budget non
-          cambiano scorrendo la lista sotto) — solo "Cosa concorre al Budget"
-          scorre. Il sfondo qui non è trasparente apposta: senza, il
-          contenuto sotto si vedrebbe passare "attraverso" quando è ancorato. */}
-      <div className="sticky top-0 z-10 flex flex-col gap-6 bg-ink-50 pb-6 dark:bg-ink-950">
+    // h-full: riempie lo spazio che <main> in app/page.tsx gli lascia (a sua
+    // volta min-h-0 flex-1 dentro un contenitore h-dvh) — così l'intestazione
+    // sotto è ferma per davvero fin dal primo pixel di scroll, non solo dopo
+    // averla "raggiunta" come con position: sticky. Solo il div con
+    // overflow-y-auto più sotto scorre.
+    <div className="flex h-full w-full max-w-2xl flex-col">
+      <div className="flex flex-col gap-6 pb-4">
         <div className="flex flex-col gap-2 text-center">
           <p className="text-sm font-medium uppercase tracking-wide text-ink-500 dark:text-ink-400">
             {isCurrentPeriod ? "Periodo corrente" : "Periodo"}
@@ -285,7 +286,9 @@ export function DashboardClient() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-8 pt-2">
+      {/* min-h-0 è necessario perché un figlio flex non si restringa oltre
+          il contenuto e forzi lo scroll sull'antenato invece che qui. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pt-2 pb-24">
         <BudgetBreakdownSection lines={budgetLines} onEditExpense={handleEditExpenseById} />
 
         {/* Saldo conti (vedi "Conti"), Impegni futuri, Movimenti di cassa e
