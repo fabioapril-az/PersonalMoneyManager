@@ -11,6 +11,9 @@ export default async function Home() {
       <header className="flex flex-wrap items-center justify-between gap-y-2 gap-x-4 px-4 py-4 sm:px-6">
         <span className="min-w-0 truncate text-sm text-ink-500 dark:text-ink-400">{session?.user?.email}</span>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <Link href="/movimenti" className="text-sm text-ink-600 hover:underline dark:text-ink-300">
+            Movimenti
+          </Link>
           <Link href="/conti" className="text-sm text-ink-600 hover:underline dark:text-ink-300">
             Conti
           </Link>
