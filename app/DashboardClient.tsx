@@ -207,91 +207,99 @@ export function DashboardClient() {
   const budgetPercentUsed = budgetAmount ? (Number(budgetSpent) / budgetAmount) * 100 : 0;
 
   return (
-    <div className="flex w-full max-w-2xl flex-col gap-8">
-      <div className="flex flex-col gap-2 text-center">
-        <p className="text-sm font-medium uppercase tracking-wide text-ink-500 dark:text-ink-400">
-          {isCurrentPeriod ? "Periodo corrente" : "Periodo"}
-        </p>
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousPeriod} aria-label="Periodo precedente">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <h1 className="text-2xl font-semibold text-ink-950 sm:text-3xl dark:text-ink-50">
-            {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
-          </h1>
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextPeriod} aria-label="Periodo successivo">
-            <ChevronRight className="size-4" />
-          </Button>
+    <div className="flex w-full max-w-2xl flex-col">
+      {/* Fisso in alto durante lo scroll (period/azioni/totali/budget non
+          cambiano scorrendo la lista sotto) — solo "Cosa concorre al Budget"
+          scorre. Il sfondo qui non è trasparente apposta: senza, il
+          contenuto sotto si vedrebbe passare "attraverso" quando è ancorato. */}
+      <div className="sticky top-0 z-10 flex flex-col gap-6 bg-ink-50 pb-6 dark:bg-ink-950">
+        <div className="flex flex-col gap-2 text-center">
+          <p className="text-sm font-medium uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            {isCurrentPeriod ? "Periodo corrente" : "Periodo"}
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousPeriod} aria-label="Periodo precedente">
+              <ChevronLeft className="size-4" />
+            </Button>
+            <h1 className="text-2xl font-semibold text-ink-950 sm:text-3xl dark:text-ink-50">
+              {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
+            </h1>
+            <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextPeriod} aria-label="Periodo successivo">
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+          {!isCurrentPeriod && (
+            <button type="button" className="text-xs text-ink-500 hover:underline dark:text-ink-400" onClick={goToCurrentPeriod}>
+              Torna a oggi
+            </button>
+          )}
         </div>
-        {!isCurrentPeriod && (
-          <button type="button" className="text-xs text-ink-500 hover:underline dark:text-ink-400" onClick={goToCurrentPeriod}>
-            Torna a oggi
-          </button>
-        )}
-      </div>
 
-      <div className="flex flex-wrap justify-center gap-3">
-        <NewExpenseDialog />
-        <NewIncomeDialog />
-        <NewTransferDialog />
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
-          <p className="text-xs text-ink-500 dark:text-ink-400">Entrate</p>
-          <p className="text-sm font-semibold text-teal-600 sm:text-lg dark:text-teal-400">
-            {formatAmount(totalIncome)}
-          </p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
-          <p className="text-xs text-ink-500 dark:text-ink-400">Spese</p>
-          <p className="text-sm font-semibold text-coral-600 sm:text-lg dark:text-coral-400">
-            {formatAmount(totalExpense)}
-          </p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
-          <p className="text-xs text-ink-500 dark:text-ink-400">Disponibile</p>
-          <p className="text-sm font-semibold text-ink-950 sm:text-lg dark:text-ink-50">{formatAmount(available)}</p>
-        </Card>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Budget mensile</h2>
-          <Link href="/budget" className="text-xs text-ink-500 hover:underline dark:text-ink-400">
-            {budgetAmount != null ? "Gestisci" : "Imposta"}
-          </Link>
+        <div className="flex flex-wrap justify-center gap-3">
+          <NewExpenseDialog />
+          <NewIncomeDialog />
+          <NewTransferDialog />
         </div>
-        {budgetAmount == null ? (
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            Nessun budget impostato — vai su &quot;Budget&quot; per definirne uno.
-          </p>
-        ) : (
-          <Card className="flex flex-col gap-1 p-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-ink-800 dark:text-ink-200">Speso / Budget</span>
-              <span className="text-ink-500 dark:text-ink-400">
-                {formatAmount(budgetSpent)} / {formatAmount(budgetAmount)}
-              </span>
-            </div>
-            <BudgetBar percentUsed={budgetPercentUsed} />
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
+            <p className="text-xs text-ink-500 dark:text-ink-400">Entrate</p>
+            <p className="text-sm font-semibold text-teal-600 sm:text-lg dark:text-teal-400">
+              {formatAmount(totalIncome)}
+            </p>
           </Card>
-        )}
+          <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
+            <p className="text-xs text-ink-500 dark:text-ink-400">Spese</p>
+            <p className="text-sm font-semibold text-coral-600 sm:text-lg dark:text-coral-400">
+              {formatAmount(totalExpense)}
+            </p>
+          </Card>
+          <Card className="flex flex-col gap-1 p-2 text-center sm:p-4">
+            <p className="text-xs text-ink-500 dark:text-ink-400">Disponibile</p>
+            <p className="text-sm font-semibold text-ink-950 sm:text-lg dark:text-ink-50">{formatAmount(available)}</p>
+          </Card>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Budget mensile</h2>
+            <Link href="/budget" className="text-xs text-ink-500 hover:underline dark:text-ink-400">
+              {budgetAmount != null ? "Gestisci" : "Imposta"}
+            </Link>
+          </div>
+          {budgetAmount == null ? (
+            <p className="text-sm text-ink-500 dark:text-ink-400">
+              Nessun budget impostato — vai su &quot;Budget&quot; per definirne uno.
+            </p>
+          ) : (
+            <Card className="flex flex-col gap-1 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ink-800 dark:text-ink-200">Speso / Budget</span>
+                <span className="text-ink-500 dark:text-ink-400">
+                  {formatAmount(budgetSpent)} / {formatAmount(budgetAmount)}
+                </span>
+              </div>
+              <BudgetBar percentUsed={budgetPercentUsed} />
+            </Card>
+          )}
+        </div>
       </div>
 
-      <BudgetBreakdownSection lines={budgetLines} onEditExpense={handleEditExpenseById} />
+      <div className="flex flex-col gap-8 pt-2">
+        <BudgetBreakdownSection lines={budgetLines} onEditExpense={handleEditExpenseById} />
 
-      {/* Saldo conti (vedi "Conti"), Impegni futuri, Movimenti di cassa e
-          Spese e entrate vivono in /movimenti — restano necessari, ma qui
-          occupavano spazio senza essere il primo motivo per cui si apre la
-          dashboard ogni giorno. */}
-      <Link
-        href="/movimenti"
-        className="flex items-center justify-between rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm font-medium text-ink-800 shadow-sm transition-colors hover:bg-ink-50 dark:border-ink-800 dark:bg-ink-900 dark:text-ink-100 dark:hover:bg-ink-800"
-      >
-        Vedi tutti i movimenti
-        <ChevronRight className="size-4 shrink-0 text-teal-600 dark:text-teal-400" />
-      </Link>
+        {/* Saldo conti (vedi "Conti"), Impegni futuri, Movimenti di cassa e
+            Spese e entrate vivono in /movimenti — restano necessari, ma qui
+            occupavano spazio senza essere il primo motivo per cui si apre la
+            dashboard ogni giorno. */}
+        <Link
+          href="/movimenti"
+          className="flex items-center justify-between rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm font-medium text-ink-800 shadow-sm transition-colors hover:bg-ink-50 dark:border-ink-800 dark:bg-ink-900 dark:text-ink-100 dark:hover:bg-ink-800"
+        >
+          Vedi tutti i movimenti
+          <ChevronRight className="size-4 shrink-0 text-teal-600 dark:text-teal-400" />
+        </Link>
+      </div>
 
       <EditExpenseDialog
         key={editingExpense?.id ?? "none"}
