@@ -82,7 +82,7 @@ function CategoryRow({ item, color }: { item: CategoryBreakdownItem; color: stri
   return (
     <div className="flex items-center gap-3">
       <span
-        className="flex h-6 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-white"
+        className="flex h-6 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-xs font-semibold text-black"
         style={{ backgroundColor: color }}
       >
         {item.percent.toFixed(0)}%
