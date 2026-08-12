@@ -288,7 +288,7 @@ export function DashboardClient() {
 
       {/* min-h-0 è necessario perché un figlio flex non si restringa oltre
           il contenuto e forzi lo scroll sull'antenato invece che qui. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pt-2 pb-24">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto pt-2 pb-4">
         <BudgetBreakdownSection lines={budgetLines} onEditExpense={handleEditExpenseById} />
 
         {/* Saldo conti (vedi "Conti"), Impegni futuri, Movimenti di cassa e

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { LogoutButton } from "./logout-button";
-import { BottomNav } from "./BottomNav";
+import { BottomNav, BottomNavSpacer } from "./BottomNav";
 import { DashboardClient } from "./DashboardClient";
 
 export default async function Home() {
@@ -18,6 +18,11 @@ export default async function Home() {
       <main className="flex min-h-0 flex-1 flex-col items-center px-4 pt-2 sm:px-6 sm:pt-4">
         <DashboardClient />
       </main>
+      {/* Riserva davvero lo spazio della barra fissa sotto, così <main> (e lo
+          scroll interno di DashboardClient) calcola l'altezza giusta invece
+          di estendersi anche dietro alla barra — vedi il commento su
+          BottomNavSpacer. */}
+      <BottomNavSpacer />
       <BottomNav logoutSlot={<LogoutButton />} />
     </div>
   );

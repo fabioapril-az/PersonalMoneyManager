@@ -59,14 +59,14 @@ export function BottomNav({ logoutSlot }: { logoutSlot: React.ReactNode }) {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-ink-800 dark:bg-ink-900">
-        <div className="mx-auto flex max-w-2xl items-stretch justify-between px-1">
+        <div className={`mx-auto flex ${NAV_HEIGHT_CLASS} max-w-2xl items-center justify-between px-1`}>
           {TABS.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.7rem] ${
+                className={`flex flex-1 flex-col items-center gap-0.5 text-[0.7rem] ${
                   active ? "text-teal-600 dark:text-teal-400" : "text-ink-500 dark:text-ink-400"
                 }`}
               >
@@ -78,7 +78,7 @@ export function BottomNav({ logoutSlot }: { logoutSlot: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setMoreOpen((v) => !v)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.7rem] ${
+            className={`flex flex-1 flex-col items-center gap-0.5 text-[0.7rem] ${
               moreOpen ? "text-teal-600 dark:text-teal-400" : "text-ink-500 dark:text-ink-400"
             }`}
           >
@@ -88,5 +88,27 @@ export function BottomNav({ logoutSlot }: { logoutSlot: React.ReactNode }) {
         </div>
       </nav>
     </>
+  );
+}
+
+// Altezza fissa (non più determinata dal contenuto interno: icona + testo +
+// padding) apposta per poterla riservare altrove con un elemento invisibile
+// della stessa dimensione — vedi BottomNavSpacer sotto. Necessario solo nelle
+// pagine con layout ad altezza fissa (oggi solo la dashboard, vedi
+// app/page.tsx): essendo "fixed", questa barra non toglie mai spazio da sola
+// a un antenato flex, quindi senza uno spacer lo scroll interno della pagina
+// si estenderebbe anche dietro alla barra (bug visto: la scrollbar “continua”
+// sotto il bordo).
+const NAV_HEIGHT_CLASS = "h-14";
+
+export function BottomNavSpacer() {
+  // Stessa struttura della <nav> reale (padding esterno per la safe-area,
+  // altezza fissa dentro) — non un solo div con entrambe le classi: con
+  // box-sizing border-box l'altezza fissa "assorbirebbe" il padding invece
+  // di aggiungerlo, risultando più basso della barra vera.
+  return (
+    <div aria-hidden className="shrink-0 pb-[env(safe-area-inset-bottom)]">
+      <div className={NAV_HEIGHT_CLASS} />
+    </div>
   );
 }
