@@ -15,25 +15,32 @@
 /*
  * "Fresh Slate, Brillante" — la direzione scelta dopo il confronto di 4
  * palette (vedi la conversazione). Neutro con una leggera dominante
- * verde-teal (mai grigio puro — vedi lo scopo di ink-* sotto) + tre accenti
- * decisi: teal per il positivo/primario, corallo per le uscite, ambra come
- * terzo accento (barra budget/grafici) — non solo rosso/verde da default.
- * ink-* sostituisce zinc-* in tutto il codice (stesso identico utilizzo:
- * bg-ink-50/dark:bg-ink-950 per lo sfondo pagina, text-ink-500 per i testi
- * secondari, ecc.) — è un rename 1:1, non una scala nuova da imparare.
+ * verde-teal (mai grigio puro) + tre accenti decisi: teal per il
+ * positivo/primario, corallo per le uscite, ambra come terzo accento (barra
+ * budget/grafici) — non solo rosso/verde da default. ink-* sostituisce
+ * zinc-* in tutto il codice (stesso identico utilizzo: bg-ink-50/
+ * dark:bg-ink-950 per lo sfondo pagina, text-ink-500 per i testi secondari,
+ * ecc.) — è un rename 1:1, non una scala nuova da imparare.
+ *
+ * Rivista dopo un primo giro in produzione (screenshot da telefono, tema
+ * scuro): la scala iniziale era troppo satura per fare da "grigio neutro" —
+ * il risultato erano etichette/sottotitoli di un teal acceso ovunque, non
+ * solo negli accenti veri (bottone primario, importi positivi). Stessa
+ * dominante ma molto meno satura, per leggersi davvero come neutro con solo
+ * un accenno di colore.
  */
 @theme {
-  --color-ink-50: #eaf7f4;
-  --color-ink-100: #d9f0ea;
-  --color-ink-200: #b8e1d6;
-  --color-ink-300: #94cdbe;
-  --color-ink-400: #6fb2a2;
-  --color-ink-500: #5b9c8c;
-  --color-ink-600: #3c7568;
-  --color-ink-700: #2e5a52;
-  --color-ink-800: #223f3a;
-  --color-ink-900: #172b27;
-  --color-ink-950: #0c1b18;
+  --color-ink-50: #eef7f5;
+  --color-ink-100: #dcece8;
+  --color-ink-200: #c2ddd7;
+  --color-ink-300: #a2c7bf;
+  --color-ink-400: #86ada4;
+  --color-ink-500: #6b8b83;
+  --color-ink-600: #536f68;
+  --color-ink-700: #405451;
+  --color-ink-800: #2c3c39;
+  --color-ink-900: #1c2725;
+  --color-ink-950: #101917;
 
   --color-teal-50: #eafbf9;
   --color-teal-100: #cdf3ec;
@@ -97,23 +104,23 @@
 }
 
 :root {
-  --background: #eaf7f4;
-  --foreground: #0c1b18;
+  --background: #eef7f5;
+  --foreground: #101917;
   --card: #ffffff;
-  --card-foreground: #0c1b18;
+  --card-foreground: #101917;
   --popover: #ffffff;
-  --popover-foreground: #0c1b18;
+  --popover-foreground: #101917;
   --primary: #009488;
   --primary-foreground: #ffffff;
-  --secondary: #d9f0ea;
-  --secondary-foreground: #0c1b18;
-  --muted: #d9f0ea;
-  --muted-foreground: #3c7568;
-  --accent: #d9f0ea;
-  --accent-foreground: #0c1b18;
+  --secondary: #dcece8;
+  --secondary-foreground: #101917;
+  --muted: #dcece8;
+  --muted-foreground: #536f68;
+  --accent: #dcece8;
+  --accent-foreground: #101917;
   --destructive: #ff6b4a;
-  --border: #b8e1d6;
-  --input: #b8e1d6;
+  --border: #c2ddd7;
+  --input: #c2ddd7;
   --ring: #00b8a9;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -139,23 +146,26 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0c1b18;
-    --foreground: #eaf7f4;
-    --card: #142722;
-    --card-foreground: #eaf7f4;
-    --popover: #142722;
-    --popover-foreground: #eaf7f4;
+    /* Più scarto tra sfondo e card di prima (erano quasi indistinguibili,
+       i bordi delle card sparivano) — e muted-foreground non più un teal
+       acceso ma la stessa scala neutra usata ovunque (ink-400). */
+    --background: #101917;
+    --foreground: #eef7f5;
+    --card: #1e2d29;
+    --card-foreground: #eef7f5;
+    --popover: #1e2d29;
+    --popover-foreground: #eef7f5;
     --primary: #2dd4c4;
-    --primary-foreground: #0c1b18;
-    --secondary: #1c352f;
-    --secondary-foreground: #eaf7f4;
-    --muted: #1c352f;
-    --muted-foreground: #94cdbe;
-    --accent: #1c352f;
-    --accent-foreground: #eaf7f4;
+    --primary-foreground: #0d1614;
+    --secondary: #1e2d29;
+    --secondary-foreground: #eef7f5;
+    --muted: #1e2d29;
+    --muted-foreground: #86ada4;
+    --accent: #1e2d29;
+    --accent-foreground: #eef7f5;
     --destructive: #ff8a6b;
-    --border: #24413a;
-    --input: #24413a;
+    --border: #304742;
+    --input: #304742;
     --ring: #2dd4c4;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
