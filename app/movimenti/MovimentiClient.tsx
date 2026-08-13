@@ -74,6 +74,73 @@ function CollapsibleSection({
   );
 }
 
+type PlannedExpenseItem = {
+  id: string;
+  amount: unknown;
+  categoryId: string;
+  description: string;
+  date: string | Date;
+  notes: string | null;
+  paymentPlan: { accountId: string; installmentsCount: number | null } | null;
+  recurringTemplate: { accountId: string } | null;
+  category: { icon: string | null; name: string };
+};
+
+// Occorrenze già generate da una ricorrenza (Netflix, mutuo, ecc. — PRD
+// sezione 9) ma non ancora confermate: solo un promemoria, non contano nel
+// Budget finché non vengono confermate (aprirle e salvarle, anche senza
+// modifiche — vedi expense.update) o ignorate per questa volta. In cima alle
+// altre sezioni: a differenza di quelle, richiedono un'azione dall'utente,
+// non solo una consultazione.
+function PlannedRecurringSection({ onEdit }: { onEdit: (expense: PlannedExpenseItem) => void }) {
+  const utils = trpc.useUtils();
+  const { data: planned, isLoading } = trpc.expense.listPlanned.useQuery();
+
+  const dismiss = trpc.expense.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Occorrenza ignorata.");
+      utils.expense.listPlanned.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Impossibile ignorare l'occorrenza."),
+  });
+
+  if (isLoading || !planned || planned.length === 0) return null;
+
+  return (
+    <CollapsibleSection title={`Ricorrenze da confermare (${planned.length})`} defaultOpen>
+      <div className="flex flex-col gap-2">
+        {planned.map((expense) => (
+          <Card key={expense.id} className="flex flex-row items-center justify-between gap-3 p-3">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-70"
+              onClick={() => onEdit(expense)}
+            >
+              <IconChip icon={expense.category.icon} tintKey={expense.description} />
+              <div className="min-w-0">
+                <p className="truncate text-sm text-ink-800 dark:text-ink-200">{expense.description}</p>
+                <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+                  {expense.category.name} · {dateFormatter.format(new Date(expense.date))}
+                </p>
+              </div>
+            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-sm font-medium text-ink-950 dark:text-ink-50">{formatAmount(expense.amount)}</span>
+              <Button size="sm" variant="outline" disabled={dismiss.isPending} onClick={() => dismiss.mutate({ id: expense.id })}>
+                Ignora
+              </Button>
+            </div>
+          </Card>
+        ))}
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Generate automaticamente da una ricorrenza — non contano nel Budget finché non le confermi (aprila per
+          correggere l&apos;importo se serve, poi Conferma) o le ignori per questa volta.
+        </p>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 type CashMovementItem = {
   id: string;
   date: Date | string;
@@ -388,6 +455,8 @@ export function MovimentiClient() {
         )}
       </div>
 
+      <PlannedRecurringSection onEdit={setEditingExpense} />
+
       <PendingSchedulesSection onEditExpense={handleEditExpenseById} />
 
       <CashMovementsSection movements={cashMovements} />
@@ -444,6 +513,13 @@ export function MovimentiClient() {
         expense={editingExpense}
         open={editingExpense !== null}
         onOpenChange={(open) => !open && setEditingExpense(null)}
+        // Nessuna spesa già confermata ha mai paymentPlan null (createExpenseChain
+        // lo crea sempre insieme all'Expense) — è null solo per un'occorrenza
+        // ricorrente ancora "da confermare" (PlannedRecurringSection sopra):
+        // stesso dialog, solo titolo/pulsante diversi per riflettere l'azione.
+        {...(editingExpense?.paymentPlan == null
+          ? { title: "Conferma ricorrenza", submitLabel: "Conferma" }
+          : {})}
       />
       <EditIncomeDialog
         key={editingIncome?.id ?? "none"}

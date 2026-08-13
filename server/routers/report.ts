@@ -50,7 +50,10 @@ export const reportRouter = router({
         select: { id: true, parentId: true, name: true, icon: true },
       }),
       ctx.prisma.expense.findMany({
-        where: { userId: ctx.userId, date: { gte: windowStart, lte: windowEnd } },
+        // status "not PLANNED": una ricorrenza non ancora confermata (PRD
+        // sezione 9) è solo un promemoria, non conta ancora come spesa reale
+        // — stesso filtro di dashboard.summary.
+        where: { userId: ctx.userId, date: { gte: windowStart, lte: windowEnd }, status: { not: "PLANNED" } },
         // id/date/description in più rispetto al minimo che servirebbe al
         // solo totale: per rispondere a "cosa è stato classificato così"
         // cliccando una categoria — vedi categoryBreakdown[].expenses sotto.
@@ -127,7 +130,7 @@ export const reportRouter = router({
             _sum: { amount: true },
           }),
           ctx.prisma.expense.aggregate({
-            where: { userId: ctx.userId, date: { gte: p.start, lte: p.end } },
+            where: { userId: ctx.userId, date: { gte: p.start, lte: p.end }, status: { not: "PLANNED" } },
             _sum: { amount: true },
           }),
         ]);

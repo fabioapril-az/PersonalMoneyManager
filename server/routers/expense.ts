@@ -28,11 +28,33 @@ export const expenseRouter = router({
   getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
     const expense = await ctx.prisma.expense.findFirst({
       where: { id: input.id, userId: ctx.userId },
-      include: { paymentPlan: { select: { accountId: true, installmentsCount: true } } },
+      // recurringTemplate: solo per una spesa PLANNED non ancora confermata
+      // (nessun paymentPlan proprio) — dà comunque un conto di partenza da
+      // pre-compilare nel form di modifica, vedi EditExpenseDialog.
+      include: {
+        paymentPlan: { select: { accountId: true, installmentsCount: true } },
+        recurringTemplate: { select: { accountId: true } },
+      },
     });
     if (!expense) throw new TRPCError({ code: "NOT_FOUND" });
     return expense;
   }),
+
+  // "Ricorrenze da confermare" (app/movimenti): le occorrenze già generate da
+  // un template (server/generateDueRecurringExpenses.ts) ma non ancora
+  // confermate — non filtrate per periodo, sono promemoria in attesa
+  // indipendentemente da quando ricadono.
+  listPlanned: protectedProcedure.query(({ ctx }) =>
+    ctx.prisma.expense.findMany({
+      where: { userId: ctx.userId, status: "PLANNED" },
+      include: {
+        category: true,
+        paymentPlan: { select: { accountId: true, installmentsCount: true } },
+        recurringTemplate: { select: { accountId: true } },
+      },
+      orderBy: { date: "asc" },
+    })
+  ),
 
   listCurrentPeriod: protectedProcedure.query(({ ctx }) => {
     const period = getCurrentFinancialPeriod();
@@ -79,6 +101,16 @@ export const expenseRouter = router({
   // Nota: se alcune rate erano già state segnate come pagate, modificare la
   // spesa le ricrea da zero (di nuovo tutte in attesa tranne la prima) — non
   // tiene traccia dei pagamenti già fatti sul piano precedente.
+  //
+  // Questo stesso percorso è anche il modo in cui si "conferma" una spesa
+  // ricorrente PLANNED (PRD sezione 9): non esiste una mutation separata —
+  // aprire "Ricorrenze da confermare", eventualmente correggere l'importo, e
+  // premere Salva chiama proprio questa mutation, che crea per la prima
+  // volta il vero PaymentPlan/CashMovement (deleteExpenseChain su una spesa
+  // senza catena è un no-op) e porta lo status a RECORDED — vedi
+  // createExpenseChain sotto. recurringTemplateId va portato avanti a mano:
+  // la vecchia Expense viene cancellata e ricreata con un id nuovo, quindi
+  // andrebbe perso senza ripassarlo esplicitamente qui.
   update: protectedProcedure.input(updateExpenseSchema).mutation(async ({ ctx, input }) => {
     const existing = await ctx.prisma.expense.findFirst({ where: { id: input.id, userId: ctx.userId } });
     if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
@@ -93,7 +125,7 @@ export const expenseRouter = router({
 
     return ctx.prisma.$transaction(async (tx) => {
       await deleteExpenseChain(tx, input.id);
-      return createExpenseChain(tx, ctx.userId, input, account);
+      return createExpenseChain(tx, ctx.userId, input, account, existing.recurringTemplateId);
     });
   }),
 
@@ -134,8 +166,14 @@ function assertCreditCardIsConfigured(account: AccountForExpense, installments?:
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma's transaction client type
-async function createExpenseChain(tx: any, userId: string, input: ExpenseInput, account: AccountForExpense) {
+async function createExpenseChain(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma's transaction client type
+  tx: any,
+  userId: string,
+  input: ExpenseInput,
+  account: AccountForExpense,
+  recurringTemplateId?: string | null
+) {
   const expense = await tx.expense.create({
     data: {
       userId,
@@ -145,9 +183,12 @@ async function createExpenseChain(tx: any, userId: string, input: ExpenseInput, 
       description: input.description,
       notes: input.notes,
       // "PLANNED" (il default dello schema) è per le ricorrenze non ancora
-      // confermate (PRD sezione 9). Un inserimento manuale è già un fatto
-      // accaduto.
+      // confermate (PRD sezione 9) — questa funzione però è chiamata sia da
+      // un inserimento manuale (già un fatto accaduto) sia dalla conferma di
+      // una ricorrenza (expense.update, vedi sopra): in entrambi i casi il
+      // risultato è una spesa reale, quindi sempre RECORDED qui.
       status: "RECORDED",
+      recurringTemplateId: recurringTemplateId ?? undefined,
     },
   });
 

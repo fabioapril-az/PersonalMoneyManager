@@ -10,6 +10,7 @@ import { budgetRouter } from "./budget";
 import { paymentScheduleRouter } from "./paymentSchedule";
 import { transferRouter } from "./transfer";
 import { reportRouter } from "./report";
+import { recurringTemplateRouter } from "./recurringTemplate";
 
 export const appRouter = router({
   period: periodRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   paymentSchedule: paymentScheduleRouter,
   transfer: transferRouter,
   report: reportRouter,
+  recurringTemplate: recurringTemplateRouter,
 });
 
 export type AppRouter = typeof appRouter;

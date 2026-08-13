@@ -34,16 +34,25 @@ export type EditableExpense = {
   date: string | Date;
   notes: string | null;
   paymentPlan: { accountId: string; installmentsCount: number | null } | null;
+  // Presente solo su una spesa PLANNED non ancora confermata (PRD sezione 9)
+  // — nessun paymentPlan proprio ancora, ma il template da cui è nata ha
+  // comunque un conto "di default" da pre-compilare, invece di lasciare il
+  // campo vuoto. Opzionale: le spese normali (già confermate) non lo hanno.
+  recurringTemplate?: { accountId: string } | null;
 };
 
 export function EditExpenseDialog({
   expense,
   open,
   onOpenChange,
+  title = "Modifica spesa",
+  submitLabel = "Salva",
 }: {
   expense: EditableExpense | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  title?: string;
+  submitLabel?: string;
 }) {
   const utils = trpc.useUtils();
   const { data: categories } = trpc.category.list.useQuery();
@@ -56,7 +65,9 @@ export function EditExpenseDialog({
   // dopo il render (anti-pattern, vedi react-hooks/set-state-in-effect).
   const [amount, setAmount] = useState(() => (expense ? String(Number(expense.amount)) : ""));
   const [categoryId, setCategoryId] = useState(() => expense?.categoryId ?? "");
-  const [accountId, setAccountId] = useState(() => expense?.paymentPlan?.accountId ?? "");
+  const [accountId, setAccountId] = useState(
+    () => expense?.paymentPlan?.accountId ?? expense?.recurringTemplate?.accountId ?? ""
+  );
   const [description, setDescription] = useState(() => expense?.description ?? "");
   const [date, setDate] = useState(() => (expense ? toDateInputValue(expense.date) : ""));
   const [notes, setNotes] = useState(() => expense?.notes ?? "");
@@ -128,7 +139,7 @@ export function EditExpenseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Modifica spesa</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -212,7 +223,7 @@ export function EditExpenseDialog({
           )}
           <DialogFooter>
             <Button type="submit" disabled={updateExpense.isPending}>
-              {updateExpense.isPending ? "Salvataggio…" : "Salva"}
+              {updateExpense.isPending ? "Salvataggio…" : submitLabel}
             </Button>
             <Button
               type="button"

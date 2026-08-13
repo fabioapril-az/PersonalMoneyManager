@@ -1,4 +1,4 @@
-import type { AccountType, CashMovementType, ReportGranularity } from "./enums";
+import type { AccountType, CashMovementType, ReportGranularity, RecurringFrequency } from "./enums";
 
 // Italian labels for the closed-set values in lib/domain/enums.ts — kept
 // separate from the enums themselves so this file (UI concern) can grow
@@ -30,5 +30,12 @@ export const CASH_MOVEMENT_TYPE_LABELS: Partial<Record<CashMovementType, string>
 export const REPORT_GRANULARITY_LABELS: Record<ReportGranularity, string> = {
   MONTHLY: "Mensile",
   QUARTERLY: "Trimestrale",
+  YEARLY: "Annuale",
+};
+
+// Frequenza di un template ricorrente (PRD sezione 9) — vedi lib/domain/recurring.ts.
+export const RECURRING_FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
+  WEEKLY: "Settimanale",
+  MONTHLY: "Mensile",
   YEARLY: "Annuale",
 };

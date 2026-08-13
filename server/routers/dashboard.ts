@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { listAccountsWithBalance } from "../accountBalances";
+import { generateDueRecurringExpenses } from "../generateDueRecurringExpenses";
 import { protectedProcedure, router } from "../trpc";
 
 export const dashboardRouter = router({
@@ -13,6 +14,12 @@ export const dashboardRouter = router({
   summary: protectedProcedure
     .input(z.object({ referenceDate: z.coerce.date().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      // Pigro come settleOverdueCardCharges (chiamato da listAccountsWithBalance
+      // qui sotto): genera le occorrenze dovute PRIMA di leggere le spese del
+      // periodo, altrimenti una ricorrenza appena generata per il periodo
+      // mostrato non comparirebbe finché non si ricarica la pagina.
+      await generateDueRecurringExpenses(ctx.prisma, ctx.userId);
+
       const period = getCurrentFinancialPeriod(input?.referenceDate);
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
 
@@ -29,7 +36,12 @@ export const dashboardRouter = router({
           orderBy: { date: "desc" },
         }),
         ctx.prisma.expense.findMany({
-          where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
+          // status "not PLANNED": una ricorrenza generata ma non ancora
+          // confermata (PRD sezione 9) è solo un promemoria — non deve
+          // contare in Spese/Budget/Disponibile finché l'utente non la
+          // conferma (expense.update). Vive altrove, vedi expense.listPlanned
+          // e "Ricorrenze da confermare" in app/movimenti.
+          where: { userId: ctx.userId, date: { gte: period.start, lte: period.end }, status: { not: "PLANNED" } },
           // Stesso motivo: l'account "vero" di un'Expense vive nel suo
           // PaymentPlan, non sull'Expense stessa. installmentsCount serve per
           // pre-compilare il form di modifica se la spesa è a rate, e insieme
