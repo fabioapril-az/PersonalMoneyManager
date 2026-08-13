@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc/client";
 import { CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domain/labels";
 import type { CashMovementType } from "@/lib/domain/enums";
 import { shiftPeriods, type FinancialPeriod } from "@/lib/domain/period";
+import { groupByCalendarDay } from "@/lib/domain/dateGroups";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EditExpenseDialog, type EditableExpense } from "../EditExpenseDialog";
@@ -392,39 +393,45 @@ export function MovimentiClient() {
       <CashMovementsSection movements={cashMovements} />
 
       <CollapsibleSection title={`Spese e entrate (${movements.length})`} defaultOpen>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {movements.length === 0 && (
             <p className="text-sm text-ink-500 dark:text-ink-400">Nessun movimento in questo periodo.</p>
           )}
-          {movements.map((movement) => (
-            <button
-              key={movement.id}
-              type="button"
-              className="w-full text-left"
-              onClick={() =>
-                movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
-              }
-            >
-              <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
-                <div className="flex min-w-0 items-center gap-3">
-                  <IconChip icon={movement.icon} tintKey={movement.label} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-ink-800 dark:text-ink-200">{movement.label}</p>
-                    <p className="truncate text-xs text-ink-500 dark:text-ink-400">
-                      {dateFormatter.format(new Date(movement.date))}
-                      {movement.sublabel ? ` · ${movement.sublabel}` : ""}
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={`shrink-0 text-sm font-medium ${
-                    movement.amount < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
-                  }`}
+          {groupByCalendarDay(movements, (m) => m.date).map((group) => (
+            <div key={group.key} className="flex flex-col gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
+                {group.label ?? dateFormatter.format(group.date)}
+              </p>
+              {group.items.map((movement) => (
+                <button
+                  key={movement.id}
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() =>
+                    movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
+                  }
                 >
-                  {formatAmount(movement.amount)}
-                </span>
-              </Card>
-            </button>
+                  <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <IconChip icon={movement.icon} tintKey={movement.label} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-ink-800 dark:text-ink-200">{movement.label}</p>
+                        {movement.sublabel && (
+                          <p className="truncate text-xs text-ink-500 dark:text-ink-400">{movement.sublabel}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 text-sm font-medium ${
+                        movement.amount < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
+                      }`}
+                    >
+                      {formatAmount(movement.amount)}
+                    </span>
+                  </Card>
+                </button>
+              ))}
+            </div>
           ))}
           <p className="text-xs text-ink-400 dark:text-ink-500">
             Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
