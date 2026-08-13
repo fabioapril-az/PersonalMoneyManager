@@ -123,7 +123,7 @@ function BudgetBreakdownSection({
   if (lines.length === 0) return null;
 
   return (
-    <CollapsibleSection title={`Cosa concorre al Budget (${lines.length})`} defaultOpen>
+    <CollapsibleSection title={`Spese nel Budget (${lines.length})`} defaultOpen>
       <div className="flex flex-col gap-2">
         {lines.map((line) => (
           <button key={line.id} type="button" className="w-full text-left" onClick={() => onEditExpense(line.expenseId)}>
@@ -165,7 +165,7 @@ export function DashboardClient() {
   const { data, isLoading } = trpc.dashboard.summary.useQuery({ referenceDate });
   const [editingExpense, setEditingExpense] = useState<EditableExpense | null>(null);
 
-  // "Cosa concorre al Budget" può riferirsi a una spesa decisa in un periodo
+  // "Spese nel Budget" può riferirsi a una spesa decisa in un periodo
   // diverso da quello mostrato (una rata in scadenza ora, comprata il mese
   // scorso) — recuperata al volo con expense.getById invece di limitarsi ai
   // dati già caricati per il periodo corrente.

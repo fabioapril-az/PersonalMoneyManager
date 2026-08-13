@@ -68,9 +68,9 @@ export const dashboardRouter = router({
                 installmentsCount: true,
                 account: { select: { name: true } },
                 // id: serve solo per aprire la modifica della spesa da
-                // "Cosa concorre al Budget" (BudgetBreakdownSection) anche
-                // quando è stata decisa in un periodo diverso da quello
-                // mostrato — vedi expense.getById.
+                // "Spese nel Budget" (BudgetBreakdownSection) anche quando è
+                // stata decisa in un periodo diverso da quello mostrato —
+                // vedi expense.getById.
                 expense: { select: { id: true, description: true, category: { select: { icon: true, name: true } } } },
               },
             },
