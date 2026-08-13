@@ -61,6 +61,7 @@ type BudgetLineItem = {
   accountName: string | null;
   amount: unknown;
   installment: { no: number | null; count: number | null } | null;
+  isRecurring: boolean;
 };
 
 // Ambra quando va bene, non teal — terzo accento dedicato al budget (Direzione
@@ -132,7 +133,9 @@ function BudgetBreakdownSection({
               {group.label ?? dateFormatter.format(group.date)}
             </p>
             {group.items.map((line) => {
-              const meta = [line.accountName, line.installment ? "scadenza" : null].filter(Boolean).join(" · ");
+              const meta = [line.accountName, line.installment ? "scadenza" : null, line.isRecurring ? "🔁 Ricorrente" : null]
+                .filter(Boolean)
+                .join(" · ");
               return (
                 <button
                   key={line.id}

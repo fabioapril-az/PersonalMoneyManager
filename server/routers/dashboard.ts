@@ -82,8 +82,16 @@ export const dashboardRouter = router({
                 // id: serve solo per aprire la modifica della spesa da
                 // "Spese nel Budget" (BudgetBreakdownSection) anche quando è
                 // stata decisa in un periodo diverso da quello mostrato —
-                // vedi expense.getById.
-                expense: { select: { id: true, description: true, category: { select: { icon: true, name: true } } } },
+                // vedi expense.getById. recurringTemplateId: per segnalare in
+                // UI le voci nate da una ricorrenza confermata (PRD sezione 9).
+                expense: {
+                  select: {
+                    id: true,
+                    description: true,
+                    recurringTemplateId: true,
+                    category: { select: { icon: true, name: true } },
+                  },
+                },
               },
             },
           },
@@ -154,6 +162,9 @@ export const dashboardRouter = router({
           accountName: e.paymentPlan?.account.name ?? null,
           amount: e.amount,
           installment: null as { no: number | null; count: number | null } | null,
+          // Generata da una ricorrenza confermata (PRD sezione 9) — vedi
+          // "🔁 Ricorrente" in DashboardClient.tsx/MovimentiClient.tsx.
+          isRecurring: e.recurringTemplateId != null,
         })),
         ...schedulesDueInPeriod.map((s) => ({
           id: s.id,
@@ -168,6 +179,7 @@ export const dashboardRouter = router({
           accountName: s.paymentPlan.account.name,
           amount: s.amount,
           installment: { no: s.installmentNo, count: s.paymentPlan.installmentsCount },
+          isRecurring: s.paymentPlan.expense.recurringTemplateId != null,
         })),
       ].sort((a, b) => b.date.getTime() - a.date.getTime());
 

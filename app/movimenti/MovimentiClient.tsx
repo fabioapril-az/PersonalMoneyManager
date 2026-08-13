@@ -412,6 +412,9 @@ export function MovimentiClient() {
         e.category.name,
         e.paymentPlan?.account.name,
         e.paymentPlan?.installmentsCount ? `${e.paymentPlan.installmentsCount} rate` : null,
+        // Generata da una ricorrenza confermata (PRD sezione 9) — stesso
+        // badge testuale usato in "Spese nel Budget" (DashboardClient.tsx).
+        e.recurringTemplateId ? "🔁 Ricorrente" : null,
       ]
         .filter(Boolean)
         .join(" · "),
