@@ -45,7 +45,7 @@ type CategoryBreakdownItem = {
 // (teal/corallo/ambra + le stesse tinte extra usate nel mockup di confronto).
 const CHART_COLORS = [
   "#00b8a9",
-  "#ff6b4a",
+  "#ff4433",
   "#ffb100",
   "#7c5cfc",
   "#2da9ff",

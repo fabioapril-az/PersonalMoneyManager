@@ -48,11 +48,13 @@
   --color-teal-500: #00b8a9;
   --color-teal-600: #009488;
 
-  --color-coral-50: #fff1ec;
-  --color-coral-100: #ffdcd0;
-  --color-coral-400: #ff8a6b;
-  --color-coral-500: #ff6b4a;
-  --color-coral-600: #e5502f;
+  /* Meno "salmone", più rosso vivo: stesso G/B ridotti a parità di R=255 su
+     tutta la scala, non solo un tono. */
+  --color-coral-50: #fff1ee;
+  --color-coral-100: #ffdad2;
+  --color-coral-400: #ff6e5c;
+  --color-coral-500: #ff4433;
+  --color-coral-600: #e8321d;
 
   --color-amber-400: #ffcf4d;
   --color-amber-500: #ffb100;
@@ -118,7 +120,7 @@
   --muted-foreground: #536f68;
   --accent: #dcece8;
   --accent-foreground: #101917;
-  --destructive: #ff6b4a;
+  --destructive: #ff4433;
   --border: #c2ddd7;
   --input: #c2ddd7;
   --ring: #00b8a9;
@@ -163,7 +165,7 @@
     --muted-foreground: #86ada4;
     --accent: #1e2d29;
     --accent-foreground: #eef7f5;
-    --destructive: #ff8a6b;
+    --destructive: #ff6e5c;
     --border: #304742;
     --input: #304742;
     --ring: #2dd4c4;
