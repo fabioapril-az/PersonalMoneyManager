@@ -164,6 +164,20 @@ model Expense {
   recurringTemplateId String?
   recurringTemplate   RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  // "Spalma sul Budget" (non nel PRD originale, discusso in seguito per
+  // spese "a cavallo" di più mesi — bollette bimestrali, spese condominiali
+  // straordinarie): quando impostato (>= 2), il Budget mensile conta solo
+  // amount/budgetSpreadPeriods in questo periodo e in ciascuno dei
+  // successivi, invece dell'importo pieno tutto in un colpo — vedi
+  // lib/domain/budget.ts (computeBudgetSpreadShare) e server/routers/
+  // dashboard.ts. Deliberatamente NON tocca Disponibile/Report/"Spese e
+  // entrate": quelli mostrano sempre l'intero importo, alla vera data del
+  // pagamento (nessuna finzione sul cash-flow reale, a differenza delle
+  // rate — vedi PaymentPlan). Mutuamente esclusivo con le rate (PaymentPlan
+  // INSTALLMENTS ha già una sua attribuzione naturale al Budget, rata per
+  // rata) — l'app non lascia impostare entrambi sulla stessa spesa.
+  budgetSpreadPeriods Int?
+
   // Every Expense always has exactly one PaymentPlan (PRD section 4). The
   // field below is optional only because Prisma requires the non-owning side
   // of a 1:1 relation to be nullable in the schema — the app layer must

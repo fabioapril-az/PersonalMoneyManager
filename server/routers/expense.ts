@@ -4,7 +4,11 @@ import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { decideExpensePlan } from "@/lib/domain/expensePlan";
 import { protectedProcedure, router } from "../trpc";
 
-const createExpenseSchema = z.object({
+// z.object prima, .refine() dopo su ciascuna variante (create/update) — non
+// il contrario: .refine() restituisce un ZodEffects, che non ha .extend(),
+// quindi updateExpenseSchema non potrebbe aggiungere "id" se lo applicassimo
+// una sola volta qui sopra.
+const expenseFieldsSchema = z.object({
   date: z.coerce.date(),
   amount: z.number().positive("L'importo deve essere maggiore di zero."),
   categoryId: z.string().min(1, "Seleziona una categoria."),
@@ -14,9 +18,25 @@ const createExpenseSchema = z.object({
   // Rate (PRD sezione 7): qualunque spesa, su qualunque conto. Se presente
   // e > 1, prevale sulla logica "carta di credito" — vedi createExpenseChain.
   installments: z.number().int().min(2).max(60).optional(),
+  // "Spalma sul Budget" (schema.prisma: Expense.budgetSpreadPeriods) — per
+  // spese "a cavallo" di più mesi (bollette bimestrali, spese condominiali
+  // straordinarie). Mutuamente esclusivo con le rate, vedi sotto: il
+  // Disponibile/CashMovement restano SEMPRE l'importo pieno, subito, a
+  // differenza delle rate — solo il Budget legge questo campo.
+  budgetSpreadPeriods: z.number().int().min(2).max(60).optional(),
 });
 
-const updateExpenseSchema = createExpenseSchema.extend({ id: z.string() });
+function refineMutualExclusivity<T extends z.ZodType<{ installments?: number; budgetSpreadPeriods?: number }>>(
+  schema: T
+) {
+  return schema.refine((data) => !(data.installments != null && data.budgetSpreadPeriods != null), {
+    message: "Una spesa non può essere sia a rate sia spalmata sul Budget: scegli una delle due.",
+    path: ["budgetSpreadPeriods"],
+  });
+}
+
+const createExpenseSchema = refineMutualExclusivity(expenseFieldsSchema);
+const updateExpenseSchema = refineMutualExclusivity(expenseFieldsSchema.extend({ id: z.string() }));
 
 export const expenseRouter = router({
   // Per aprire la modifica di una spesa referenziata da fuori dal suo
@@ -147,6 +167,7 @@ type ExpenseInput = {
   description: string;
   notes?: string;
   installments?: number;
+  budgetSpreadPeriods?: number;
 };
 
 type AccountForExpense = { type: string; statementDay: number | null; name: string };
@@ -188,6 +209,10 @@ async function createExpenseChain(
       // risultato è una spesa reale, quindi sempre RECORDED qui.
       status: "RECORDED",
       recurringTemplateId: recurringTemplateId ?? undefined,
+      // "Spalma sul Budget" (vedi il commento sul campo in schema.prisma) —
+      // non tocca nulla di quello che segue (PaymentPlan/Schedule/
+      // CashMovement): solo server/routers/dashboard.ts lo legge.
+      budgetSpreadPeriods: input.budgetSpreadPeriods ?? undefined,
     },
   });
 

@@ -60,6 +60,11 @@ export function NewExpenseDialog() {
   const [notes, setNotes] = useState("");
   const [isInstallments, setIsInstallments] = useState(false);
   const [installments, setInstallments] = useState("3");
+  // "Spalma sul Budget" (bollette bimestrali, spese straordinarie a cavallo
+  // di più mesi) — mutuamente esclusivo con le rate, vedi i due
+  // onCheckedChange sotto: attivarne uno disattiva l'altro.
+  const [isBudgetSpread, setIsBudgetSpread] = useState(false);
+  const [budgetSpreadPeriods, setBudgetSpreadPeriods] = useState("2");
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -83,6 +88,11 @@ export function NewExpenseDialog() {
     isInstallments && Number.isFinite(parsedAmountPreview) && parsedAmountPreview > 0 && parsedInstallmentsPreview >= 2
       ? splitIntoInstallments(parsedAmountPreview, parsedInstallmentsPreview)
       : null;
+  const parsedSpreadPreview = Number(budgetSpreadPeriods);
+  const budgetSpreadShare =
+    isBudgetSpread && Number.isFinite(parsedAmountPreview) && parsedAmountPreview > 0 && parsedSpreadPreview >= 2
+      ? splitIntoInstallments(parsedAmountPreview, parsedSpreadPreview)[0]
+      : null;
 
   const createExpense = trpc.expense.create.useMutation({
     onSuccess: () => {
@@ -103,6 +113,8 @@ export function NewExpenseDialog() {
     setNotes("");
     setIsInstallments(false);
     setInstallments("3");
+    setIsBudgetSpread(false);
+    setBudgetSpreadPeriods("2");
     setOpen(false);
   }
 
@@ -122,6 +134,11 @@ export function NewExpenseDialog() {
       toast.error("Il numero di rate deve essere almeno 2.");
       return;
     }
+    const parsedSpread = Number(budgetSpreadPeriods);
+    if (isBudgetSpread && (!Number.isInteger(parsedSpread) || parsedSpread < 2)) {
+      toast.error("Il numero di mesi deve essere almeno 2.");
+      return;
+    }
 
     createExpense.mutate({
       amount: parsedAmount,
@@ -131,6 +148,7 @@ export function NewExpenseDialog() {
       date: new Date(date),
       notes: notes || undefined,
       installments: isInstallments ? parsedInstallments : undefined,
+      budgetSpreadPeriods: isBudgetSpread ? parsedSpread : undefined,
     });
   }
 
@@ -220,7 +238,11 @@ export function NewExpenseDialog() {
             <Checkbox
               id="expense-installments-toggle"
               checked={isInstallments}
-              onCheckedChange={(checked) => setIsInstallments(checked === true)}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsInstallments(next);
+                if (next) setIsBudgetSpread(false);
+              }}
             />
             <Label htmlFor="expense-installments-toggle" className="font-normal">
               Pagamento a rate
@@ -247,6 +269,41 @@ export function NewExpenseDialog() {
                   ) pagata subito, le altre mensili — la trovi in &quot;Impegni futuri&quot;.
                 </p>
               )}
+            </div>
+          )}
+          <div className="group/field flex items-center gap-2">
+            <Checkbox
+              id="expense-budget-spread-toggle"
+              checked={isBudgetSpread}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsBudgetSpread(next);
+                if (next) setIsInstallments(false);
+              }}
+            />
+            <Label htmlFor="expense-budget-spread-toggle" className="font-normal">
+              Spalma sul Budget su più mesi
+            </Label>
+          </div>
+          {isBudgetSpread && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-budget-spread-count">Quanti mesi copre (incluso questo)?</Label>
+              <Input
+                id="expense-budget-spread-count"
+                type="number"
+                min={2}
+                max={60}
+                value={budgetSpreadPeriods}
+                onChange={(e) => setBudgetSpreadPeriods(e.target.value)}
+                required
+              />
+              <p className="text-xs text-ink-500 dark:text-ink-400">
+                Per bollette bimestrali o spese straordinarie: esce dal conto per intero, subito, come sempre — solo
+                il Budget mensile ne leggerà una quota
+                {budgetSpreadShare != null &&
+                  ` (${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(budgetSpreadShare)})`}{" "}
+                in questo mese e in ciascuno dei successivi.
+              </p>
             </div>
           )}
           <DialogFooter>

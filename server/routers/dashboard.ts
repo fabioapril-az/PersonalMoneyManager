@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
-import { selectBudgetExpenses } from "@/lib/domain/budget";
+import { selectBudgetExpenses, computeBudgetSpreadShare } from "@/lib/domain/budget";
 import { listAccountsWithBalance } from "../accountBalances";
 import { generateDueRecurringExpenses } from "../generateDueRecurringExpenses";
 import { protectedProcedure, router } from "../trpc";
@@ -24,7 +24,8 @@ export const dashboardRouter = router({
       const period = getCurrentFinancialPeriod(input?.referenceDate);
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
 
-      const [incomes, expenses, schedulesDueInPeriod, cashMovements, accounts, user] = await Promise.all([
+      const [incomes, expenses, schedulesDueInPeriod, cashMovements, accounts, user, pastSpreadExpenses] =
+        await Promise.all([
         ctx.prisma.income.findMany({
           where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
           // accountId non è un campo di Income (solo il suo CashMovement lo
@@ -123,6 +124,30 @@ export const dashboardRouter = router({
         }),
         listAccountsWithBalance(ctx.prisma, ctx.userId),
         ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
+        // "Spalma sul Budget" (Expense.budgetSpreadPeriods, vedi schema.prisma
+        // e lib/domain/budget.ts): spese pagate in un periodo PRECEDENTE a
+        // questo che possono comunque toccare il Budget del periodo mostrato
+        // (una quota, non l'importo intero — vedi computeBudgetSpreadShare
+        // sotto). Non filtrata per data d'inizio: per un uso personale il
+        // numero di spese spalmate resta piccolo, e non conosciamo a priori
+        // quanto indietro cercare (dipende da quanti periodi ciascuna copre).
+        ctx.prisma.expense.findMany({
+          where: {
+            userId: ctx.userId,
+            budgetSpreadPeriods: { not: null },
+            date: { lt: period.start },
+            status: { not: "PLANNED" },
+          },
+          select: {
+            id: true,
+            date: true,
+            amount: true,
+            budgetSpreadPeriods: true,
+            description: true,
+            category: { select: { icon: true, name: true } },
+            paymentPlan: { select: { type: true, account: { select: { name: true, excludeFromTotals: true } } } },
+          },
+        }),
       ]);
 
       // "Spese" (PRD sezione 11): sempre l'Expense per intero, alla data della
@@ -134,15 +159,47 @@ export const dashboardRouter = router({
       // (deciso col confronto sul caso ristorante-con-carta):
       // - pagamento immediato o carta di credito: pesano alla data
       //   dell'ACQUISTO ("l'ho deciso oggi, lo sto spendendo oggi") — stesso
-      //   importo, stesso periodo di totalExpense.
+      //   importo, stesso periodo di totalExpense. A meno che non sia
+      //   "spalmata sul Budget" (budgetSpreadPeriods, vedi sotto): allora pesa
+      //   solo per la sua quota di questo periodo.
       // - a rate (PRD sezione 7: "il budget del periodo considera solamente
       //   le rate appartenenti al periodo"): pesano alla data di SCADENZA di
       //   ogni singola rata, una alla volta — non tutto l'importo in un
       //   colpo sul mese dell'acquisto.
       const budgetExpenses = selectBudgetExpenses(expenses);
+
+      // Una spesa "spalmata sul Budget" (schema.prisma: Expense.
+      // budgetSpreadPeriods) pesa qui solo per la quota di questo periodo,
+      // mai per l'importo intero — a differenza di totalExpense sopra, che
+      // resta sempre l'importo pieno alla data vera (Rule 4, mai spalmato).
+      // Per una spesa di QUESTO periodo la quota è sempre la prima (indice 0,
+      // "rata 1"): il periodo d'origine di computeBudgetSpreadShare coincide
+      // per costruzione con quello mostrato, dato che e.date è già filtrata
+      // dentro [period.start, period.end] più sopra.
+      function budgetAmountFor(e: { date: Date; amount: Prisma.Decimal; budgetSpreadPeriods: number | null }) {
+        if (e.budgetSpreadPeriods == null) return e.amount;
+        return new Prisma.Decimal(computeBudgetSpreadShare(e.date, Number(e.amount), e.budgetSpreadPeriods, period)!.amount);
+      }
+
+      // Spese "spalmate sul Budget" pagate in un periodo PRECEDENTE
+      // (pastSpreadExpenses sopra) la cui quota ricade comunque in questo
+      // periodo — es. bolletta bimestrale pagata il mese scorso, la cui 2ª
+      // quota pesa su questo. Mai all'indietro (computeBudgetSpreadShare non
+      // restituisce mai un periodo precedente a quello di pagamento).
+      // Loop esplicito invece di map+filter(Boolean): un .filter su un
+      // risultato "T | null" non restringe da solo il tipo in TypeScript
+      // strict, servirebbe un type predicate — così è più semplice e diretto.
+      const pastSpreadShares: { expense: (typeof pastSpreadExpenses)[number]; share: NonNullable<ReturnType<typeof computeBudgetSpreadShare>> }[] =
+        [];
+      for (const e of selectBudgetExpenses(pastSpreadExpenses)) {
+        const share = computeBudgetSpreadShare(e.date, Number(e.amount), e.budgetSpreadPeriods as number, period);
+        if (share) pastSpreadShares.push({ expense: e, share });
+      }
+
       const budgetSpent = budgetExpenses
-        .reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0))
-        .plus(schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0)));
+        .reduce((sum, e) => sum.plus(budgetAmountFor(e)), new Prisma.Decimal(0))
+        .plus(schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0)))
+        .plus(pastSpreadShares.reduce((sum, { share }) => sum.plus(share.amount), new Prisma.Decimal(0)));
 
       // Dettaglio "cosa concorre al budget" — stessa identica selezione di
       // budgetSpent sopra, riga per riga invece che sommata, perché capire
@@ -151,20 +208,29 @@ export const dashboardRouter = router({
       // Impegni futuri/Movimenti di cassa (mescolano scadenze future non
       // ancora del periodo, trasferimenti, entrate, ecc.).
       const budgetLines = [
-        ...budgetExpenses.map((e) => ({
-          id: e.id,
-          expenseId: e.id,
-          date: e.date,
-          description: e.description,
-          categoryIcon: e.category.icon,
-          categoryName: e.category.name,
-          accountName: e.paymentPlan?.account.name ?? null,
-          amount: e.amount,
-          installment: null as { no: number | null; count: number | null } | null,
-          // Generata da una ricorrenza confermata (PRD sezione 9) — vedi
-          // "🔁 Ricorrente" in DashboardClient.tsx/MovimentiClient.tsx.
-          isRecurring: e.recurringTemplateId != null,
-        })),
+        ...budgetExpenses.map((e) => {
+          const share = e.budgetSpreadPeriods != null
+            ? computeBudgetSpreadShare(e.date, Number(e.amount), e.budgetSpreadPeriods, period)
+            : null;
+          return {
+            id: e.id,
+            expenseId: e.id,
+            date: e.date,
+            description: e.description,
+            categoryIcon: e.category.icon,
+            categoryName: e.category.name,
+            accountName: e.paymentPlan?.account.name ?? null,
+            amount: share ? new Prisma.Decimal(share.amount) : e.amount,
+            installment: share ? { no: share.no, count: share.count } : (null as { no: number | null; count: number | null } | null),
+            // Solo per una riga "spalmata sul Budget" — mostrato accanto alla
+            // quota apposta perché non sia scambiata per una rata vera ancora
+            // da pagare (qui l'intero importo è già uscito dal conto).
+            spreadTotalAmount: share ? share.totalAmount : null,
+            // Generata da una ricorrenza confermata (PRD sezione 9) — vedi
+            // "🔁 Ricorrente" in DashboardClient.tsx/MovimentiClient.tsx.
+            isRecurring: e.recurringTemplateId != null,
+          };
+        }),
         ...schedulesDueInPeriod.map((s) => ({
           id: s.id,
           // La riga è identificata dalla PaymentSchedule (id, usato come React
@@ -178,7 +244,27 @@ export const dashboardRouter = router({
           accountName: s.paymentPlan.account.name,
           amount: s.amount,
           installment: { no: s.installmentNo, count: s.paymentPlan.installmentsCount },
+          spreadTotalAmount: null as number | null,
           isRecurring: s.paymentPlan.expense.recurringTemplateId != null,
+        })),
+        ...pastSpreadShares.map(({ expense: e, share }) => ({
+          // Non l'id della spesa (già usato come chiave altrove, e questa riga
+          // non è "la" spesa ma una sua quota) — un id sintetico stabile.
+          id: `${e.id}-spread-${period.key}`,
+          expenseId: e.id,
+          // La data VERA del pagamento, non una data finta dentro questo
+          // periodo: non è successo nulla "oggi", è una quota di competenza
+          // di una spesa pagata altrove — mostrarla aiuta a capire che è un
+          // riporto, non un nuovo movimento.
+          date: e.date,
+          description: e.description,
+          categoryIcon: e.category.icon,
+          categoryName: e.category.name,
+          accountName: e.paymentPlan?.account.name ?? null,
+          amount: new Prisma.Decimal(share.amount),
+          installment: { no: share.no, count: share.count },
+          spreadTotalAmount: share.totalAmount,
+          isRecurring: false,
         })),
       ].sort((a, b) => b.date.getTime() - a.date.getTime());
 

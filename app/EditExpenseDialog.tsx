@@ -39,6 +39,8 @@ export type EditableExpense = {
   // comunque un conto "di default" da pre-compilare, invece di lasciare il
   // campo vuoto. Opzionale: le spese normali (già confermate) non lo hanno.
   recurringTemplate?: { accountId: string } | null;
+  // "Spalma sul Budget" — vedi il commento sul campo in schema.prisma.
+  budgetSpreadPeriods?: number | null;
 };
 
 export function EditExpenseDialog({
@@ -74,6 +76,10 @@ export function EditExpenseDialog({
   const initialInstallmentsCount = expense?.paymentPlan?.installmentsCount ?? 1;
   const [isInstallments, setIsInstallments] = useState(() => initialInstallmentsCount > 1);
   const [installments, setInstallments] = useState(() => String(Math.max(initialInstallmentsCount, 2)));
+  const [isBudgetSpread, setIsBudgetSpread] = useState(() => (expense?.budgetSpreadPeriods ?? 0) >= 2);
+  const [budgetSpreadPeriods, setBudgetSpreadPeriods] = useState(() =>
+    String(Math.max(expense?.budgetSpreadPeriods ?? 2, 2))
+  );
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -122,6 +128,11 @@ export function EditExpenseDialog({
       toast.error("Il numero di rate deve essere almeno 2.");
       return;
     }
+    const parsedSpread = Number(budgetSpreadPeriods);
+    if (isBudgetSpread && (!Number.isInteger(parsedSpread) || parsedSpread < 2)) {
+      toast.error("Il numero di mesi deve essere almeno 2.");
+      return;
+    }
 
     updateExpense.mutate({
       id: expense.id,
@@ -132,6 +143,7 @@ export function EditExpenseDialog({
       date: new Date(date),
       notes: notes || undefined,
       installments: isInstallments ? parsedInstallments : undefined,
+      budgetSpreadPeriods: isBudgetSpread ? parsedSpread : undefined,
     });
   }
 
@@ -197,7 +209,11 @@ export function EditExpenseDialog({
             <Checkbox
               id="edit-expense-installments-toggle"
               checked={isInstallments}
-              onCheckedChange={(checked) => setIsInstallments(checked === true)}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsInstallments(next);
+                if (next) setIsBudgetSpread(false);
+              }}
             />
             <Label htmlFor="edit-expense-installments-toggle" className="font-normal">
               Pagamento a rate
@@ -218,6 +234,38 @@ export function EditExpenseDialog({
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 Attenzione: modificando la spesa, il piano rate viene ricreato da zero — eventuali rate già
                 segnate come pagate tornano in attesa (tranne la prima).
+              </p>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="edit-expense-budget-spread-toggle"
+              checked={isBudgetSpread}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsBudgetSpread(next);
+                if (next) setIsInstallments(false);
+              }}
+            />
+            <Label htmlFor="edit-expense-budget-spread-toggle" className="font-normal">
+              Spalma sul Budget su più mesi
+            </Label>
+          </div>
+          {isBudgetSpread && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-budget-spread-count">Quanti mesi copre (incluso questo)?</Label>
+              <Input
+                id="edit-expense-budget-spread-count"
+                type="number"
+                min={2}
+                max={60}
+                value={budgetSpreadPeriods}
+                onChange={(e) => setBudgetSpreadPeriods(e.target.value)}
+                required
+              />
+              <p className="text-xs text-ink-500 dark:text-ink-400">
+                Esce dal conto per intero, come sempre — solo il Budget mensile ne legge una quota in questo mese e
+                in ciascuno dei successivi.
               </p>
             </div>
           )}

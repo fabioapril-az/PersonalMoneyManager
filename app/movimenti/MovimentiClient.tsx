@@ -415,6 +415,9 @@ export function MovimentiClient() {
         // Generata da una ricorrenza confermata (PRD sezione 9) — stesso
         // badge testuale usato in "Spese nel Budget" (DashboardClient.tsx).
         e.recurringTemplateId ? "🔁 Ricorrente" : null,
+        // L'importo qui resta sempre quello pieno (Rule 4) — questo badge
+        // spiega perché "Spese nel Budget" ne mostra invece solo una quota.
+        e.budgetSpreadPeriods ? `spalmata su ${e.budgetSpreadPeriods} mesi` : null,
       ]
         .filter(Boolean)
         .join(" · "),

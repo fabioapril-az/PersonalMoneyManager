@@ -61,6 +61,11 @@ type BudgetLineItem = {
   accountName: string | null;
   amount: unknown;
   installment: { no: number | null; count: number | null } | null;
+  // Presente solo per una quota "spalmata sul Budget" (Expense.
+  // budgetSpreadPeriods) — l'importo pieno originale, mostrato accanto alla
+  // quota per non confonderla con una rata vera ancora da pagare (qui
+  // l'intero importo è già uscito dal conto, subito).
+  spreadTotalAmount: number | null;
   isRecurring: boolean;
 };
 
@@ -133,7 +138,16 @@ function BudgetBreakdownSection({
               {group.label ?? dateFormatter.format(group.date)}
             </p>
             {group.items.map((line) => {
-              const meta = [line.accountName, line.installment ? "scadenza" : null, line.isRecurring ? "🔁 Ricorrente" : null]
+              // Una riga "spalmata sul Budget" riusa lo stesso campo
+              // installment (per la dicitura "rata N/count") di una rata
+              // vera, ma non lo è: qui l'importo intero è già uscito dal
+              // conto, non c'è nessuna scadenza futura — vedi spreadTotalAmount.
+              const isSpread = line.spreadTotalAmount != null;
+              const meta = [
+                line.accountName,
+                line.installment && !isSpread ? "scadenza" : null,
+                line.isRecurring ? "🔁 Ricorrente" : null,
+              ]
                 .filter(Boolean)
                 .join(" · ");
               return (
@@ -149,7 +163,10 @@ function BudgetBreakdownSection({
                       <div className="min-w-0">
                         <p className="truncate text-sm text-ink-800 dark:text-ink-200">
                           {line.description}
-                          {line.installment && ` · rata ${line.installment.no}/${line.installment.count}`}
+                          {line.installment &&
+                            ` · rata ${line.installment.no}/${line.installment.count}${
+                              isSpread ? ` (spesa ${formatAmount(line.spreadTotalAmount)})` : ""
+                            }`}
                         </p>
                         {meta && <p className="truncate text-xs text-ink-500 dark:text-ink-400">{meta}</p>}
                       </div>
@@ -165,7 +182,8 @@ function BudgetBreakdownSection({
         ))}
         <p className="text-xs text-ink-400 dark:text-ink-500">
           Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
-          d&apos;acquisto, rate alla loro scadenza. Clicca per modificare la spesa.
+          d&apos;acquisto, rate alla loro scadenza, spese spalmate una quota per mese. Clicca per modificare la
+          spesa.
         </p>
       </div>
     </CollapsibleSection>
