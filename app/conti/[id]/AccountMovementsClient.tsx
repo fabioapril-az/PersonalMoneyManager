@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domain/labels";
 import type { CashMovementType } from "@/lib/domain/enums";
-import { shiftPeriods, type FinancialPeriod } from "@/lib/domain/period";
+import { shiftCalendarMonths, type CalendarMonth } from "@/lib/domain/calendarMonth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button";
 // pagine indipendenti — vedi la convenzione già stabilita nel progetto).
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", timeZone: "UTC" });
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+// Mese solare (vedi il commento in account.listMovements sul perché), non il
+// periodo 27->26 — "luglio 2026", non un intervallo di date.
+const monthFormatter = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric", timeZone: "UTC" });
+function capitalize(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 function formatAmount(value: unknown) {
   return currencyFormatter.format(Number(value));
@@ -53,20 +59,20 @@ export function AccountMovementsClient({ accountId }: { accountId: string }) {
     return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
   }
 
-  const { account, period, isCurrentPeriod, movements, total } = data;
+  const { account, month, isCurrentMonth, movements, total } = data;
 
-  const anchorPeriod: FinancialPeriod = {
-    start: new Date(period.start),
-    end: new Date(period.end),
-    key: period.key,
+  const anchorMonth: CalendarMonth = {
+    start: new Date(month.start),
+    end: new Date(month.end),
+    key: month.key,
   };
-  function goToPreviousPeriod() {
-    setReferenceDate(shiftPeriods(anchorPeriod, -1).start);
+  function goToPreviousMonth() {
+    setReferenceDate(shiftCalendarMonths(anchorMonth, -1).start);
   }
-  function goToNextPeriod() {
-    setReferenceDate(shiftPeriods(anchorPeriod, 1).start);
+  function goToNextMonth() {
+    setReferenceDate(shiftCalendarMonths(anchorMonth, 1).start);
   }
-  function goToCurrentPeriod() {
+  function goToCurrentMonth() {
     setReferenceDate(undefined);
   }
 
@@ -81,28 +87,32 @@ export function AccountMovementsClient({ accountId }: { accountId: string }) {
       <div className="flex flex-col gap-2 text-center">
         <h1 className="text-lg font-semibold text-ink-950 dark:text-ink-50">{account.name}</h1>
         <p className="text-sm font-medium uppercase tracking-wide text-ink-500 dark:text-ink-400">
-          {isCurrentPeriod ? "Periodo corrente" : "Periodo"}
+          {isCurrentMonth ? "Mese corrente" : "Mese"}
         </p>
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousPeriod} aria-label="Periodo precedente">
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousMonth} aria-label="Mese precedente">
             <ChevronLeft className="size-4" />
           </Button>
           <p className="text-base font-semibold text-ink-950 dark:text-ink-50">
-            {dateFormatter.format(new Date(period.start))} → {dateFormatter.format(new Date(period.end))}
+            {capitalize(monthFormatter.format(new Date(month.start)))}
           </p>
-          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextPeriod} aria-label="Periodo successivo">
+          <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextMonth} aria-label="Mese successivo">
             <ChevronRight className="size-4" />
           </Button>
         </div>
-        {!isCurrentPeriod && (
-          <button type="button" className="text-xs text-ink-500 hover:underline dark:text-ink-400" onClick={goToCurrentPeriod}>
+        {!isCurrentMonth && (
+          <button type="button" className="text-xs text-ink-500 hover:underline dark:text-ink-400" onClick={goToCurrentMonth}>
             Torna a oggi
           </button>
         )}
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Mese solare, non il periodo 27→26 usato nel resto dell&apos;app — per confrontare con un vero estratto
+          conto.
+        </p>
       </div>
 
       <Card className="flex flex-row items-center justify-between p-4">
-        <span className="text-sm text-ink-500 dark:text-ink-400">Totale movimenti del periodo</span>
+        <span className="text-sm text-ink-500 dark:text-ink-400">Totale movimenti del mese</span>
         <span
           className={`text-lg font-semibold ${
             Number(total) < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
@@ -114,7 +124,7 @@ export function AccountMovementsClient({ accountId }: { accountId: string }) {
 
       <div className="flex flex-col gap-2">
         {movements.length === 0 && (
-          <p className="text-sm text-ink-500 dark:text-ink-400">Nessun movimento su questo conto in questo periodo.</p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">Nessun movimento su questo conto in questo mese.</p>
         )}
         {movements.map((movement) => {
           const schedule = movement.paymentSchedule;

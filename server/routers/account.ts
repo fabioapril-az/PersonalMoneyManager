@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { accountTypeSchema } from "@/lib/domain/enums";
-import { getCurrentFinancialPeriod } from "@/lib/domain/period";
+import { getCurrentCalendarMonth } from "@/lib/domain/calendarMonth";
 import { listAccountsWithBalance } from "../accountBalances";
 import { settleOverdueCardCharges } from "../settleOverdueCardCharges";
 import { protectedProcedure, router } from "../trpc";
@@ -87,11 +87,18 @@ export const accountRouter = router({
       });
     }),
 
-  // "Cosa è successo davvero su QUESTO conto" (PRD Rule 5), un periodo alla
+  // "Cosa è successo davvero su QUESTO conto" (PRD Rule 5), un mese alla
   // volta — per verificare un addebito reale (es. l'estratto conto della
   // carta di credito arrivato oggi) contro quello che l'app ha registrato:
   // la pagina "Movimenti" mescola tutti i conti insieme, qui c'è solo quello
-  // scelto, con un totale di periodo direttamente confrontabile.
+  // scelto, con un totale direttamente confrontabile.
+  //
+  // Mese SOLARE (lib/domain/calendarMonth.ts), non il periodo 27->26 del
+  // resto dell'app (lib/domain/period.ts): un vero estratto conto — carta
+  // di credito o banca — segue sempre il mese solare, mai il ciclo di
+  // questa app. Unica eccezione in tutto il progetto, deliberata: qui lo
+  // scopo è confrontarsi con un documento esterno che usa quella
+  // convenzione, non leggere il budget interno dell'app.
   listMovements: protectedProcedure
     .input(z.object({ accountId: z.string(), referenceDate: z.coerce.date().optional() }))
     .query(async ({ ctx, input }) => {
@@ -103,11 +110,11 @@ export const accountRouter = router({
       // altrimenti un addebito appena avvenuto potrebbe non comparire ancora.
       await settleOverdueCardCharges(ctx.prisma, ctx.userId);
 
-      const period = getCurrentFinancialPeriod(input.referenceDate);
-      const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
+      const month = getCurrentCalendarMonth(input.referenceDate);
+      const isCurrentMonth = month.key === getCurrentCalendarMonth().key;
 
       const movements = await ctx.prisma.cashMovement.findMany({
-        where: { accountId: input.accountId, date: { gte: period.start, lte: period.end } },
+        where: { accountId: input.accountId, date: { gte: month.start, lte: month.end } },
         include: {
           paymentSchedule: {
             select: {
@@ -127,6 +134,6 @@ export const accountRouter = router({
 
       const total = movements.reduce((sum, m) => sum.plus(m.amount), new Prisma.Decimal(0));
 
-      return { account, period, isCurrentPeriod, movements, total };
+      return { account, month, isCurrentMonth, movements, total };
     }),
 });
