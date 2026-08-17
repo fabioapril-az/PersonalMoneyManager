@@ -134,6 +134,28 @@ export const accountRouter = router({
 
       const total = movements.reduce((sum, m) => sum.plus(m.amount), new Prisma.Decimal(0));
 
-      return { account, month, isCurrentMonth, movements, total };
+      // Le SPESE (data d'ACQUISTO) fatte con questo conto in questo mese —
+      // diverse dai movements sopra: un acquisto con carta di credito ha
+      // sempre un CashMovement il mese DOPO (alla data di fatturazione), mai
+      // quello dell'acquisto stesso (PRD sezione 6). Senza questo elenco non
+      // c'è modo di vedere "cosa ho comprato a luglio con questa carta" —
+      // solo "cosa mi è stato addebitato", che a luglio sarebbe sempre vuoto
+      // per una carta di credito.
+      const expenses = await ctx.prisma.expense.findMany({
+        where: {
+          userId: ctx.userId,
+          date: { gte: month.start, lte: month.end },
+          status: { not: "PLANNED" },
+          paymentPlan: { accountId: input.accountId },
+        },
+        include: {
+          category: { select: { icon: true, name: true } },
+          paymentPlan: { select: { type: true, installmentsCount: true } },
+        },
+        orderBy: { date: "desc" },
+      });
+      const expensesTotal = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
+
+      return { account, month, isCurrentMonth, movements, total, expenses, expensesTotal };
     }),
 });

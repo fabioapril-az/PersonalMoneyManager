@@ -59,7 +59,7 @@ export function AccountMovementsClient({ accountId }: { accountId: string }) {
     return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
   }
 
-  const { account, month, isCurrentMonth, movements, total } = data;
+  const { account, month, isCurrentMonth, movements, total, expenses, expensesTotal } = data;
 
   const anchorMonth: CalendarMonth = {
     start: new Date(month.start),
@@ -111,18 +111,61 @@ export function AccountMovementsClient({ accountId }: { accountId: string }) {
         </p>
       </div>
 
-      <Card className="flex flex-row items-center justify-between p-4">
-        <span className="text-sm text-ink-500 dark:text-ink-400">Totale movimenti del mese</span>
-        <span
-          className={`text-lg font-semibold ${
-            Number(total) < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
-          }`}
-        >
-          {formatAmount(total)}
-        </span>
-      </Card>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Spese di questo mese ({expenses.length})</h2>
+          <span
+            className={`text-sm font-semibold ${
+              Number(expensesTotal) > 0 ? "text-coral-600 dark:text-coral-400" : "text-ink-950 dark:text-ink-50"
+            }`}
+          >
+            {formatAmount(expensesTotal)}
+          </span>
+        </div>
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Data d&apos;ACQUISTO — cosa hai comprato con questo conto in questo mese, comprese le spese non ancora
+          addebitate (carta di credito). È l&apos;elenco confrontabile con &quot;le transazioni di questo mese&quot;
+          di un vero estratto conto.
+        </p>
+        {expenses.length === 0 && (
+          <p className="text-sm text-ink-500 dark:text-ink-400">Nessuna spesa registrata su questo conto in questo mese.</p>
+        )}
+        {expenses.map((expense) => (
+          <Card key={expense.id} className="flex flex-row items-center justify-between gap-3 p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <IconChip icon={expense.category.icon} tintKey={expense.description} />
+              <div className="min-w-0">
+                <p className="truncate text-sm text-ink-800 dark:text-ink-200">
+                  {expense.description}
+                  {expense.paymentPlan?.type === "INSTALLMENTS" && ` · ${expense.paymentPlan?.installmentsCount} rate`}
+                </p>
+                <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+                  {expense.category.name} · {dateFormatter.format(new Date(expense.date))}
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-sm font-medium text-coral-600 dark:text-coral-400">
+              {formatAmount(-Number(expense.amount))}
+            </span>
+          </Card>
+        ))}
+      </div>
 
       <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Movimenti reali di questo mese ({movements.length})</h2>
+          <span
+            className={`text-sm font-semibold ${
+              Number(total) < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
+            }`}
+          >
+            {formatAmount(total)}
+          </span>
+        </div>
+        <p className="text-xs text-ink-400 dark:text-ink-500">
+          Data del vero movimento di cassa — per carta di credito è sempre il mese SUCCESSIVO a quello d&apos;acquisto
+          (data di fatturazione, PRD sezione 6). Confrontalo con quanto ti è stato realmente addebitato.
+        </p>
         {movements.length === 0 && (
           <p className="text-sm text-ink-500 dark:text-ink-400">Nessun movimento su questo conto in questo mese.</p>
         )}
