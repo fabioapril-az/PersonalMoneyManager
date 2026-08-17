@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { Prisma } from "@/app/generated/prisma/client";
 import { accountTypeSchema } from "@/lib/domain/enums";
+import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { listAccountsWithBalance } from "../accountBalances";
+import { settleOverdueCardCharges } from "../settleOverdueCardCharges";
 import { protectedProcedure, router } from "../trpc";
 
 const statementDaySchema = z.number().int().min(1).max(31);
@@ -82,5 +85,48 @@ export const accountRouter = router({
         where: { id: input.id },
         data: { archived: input.archived },
       });
+    }),
+
+  // "Cosa è successo davvero su QUESTO conto" (PRD Rule 5), un periodo alla
+  // volta — per verificare un addebito reale (es. l'estratto conto della
+  // carta di credito arrivato oggi) contro quello che l'app ha registrato:
+  // la pagina "Movimenti" mescola tutti i conti insieme, qui c'è solo quello
+  // scelto, con un totale di periodo direttamente confrontabile.
+  listMovements: protectedProcedure
+    .input(z.object({ accountId: z.string(), referenceDate: z.coerce.date().optional() }))
+    .query(async ({ ctx, input }) => {
+      const account = await ctx.prisma.account.findFirst({ where: { id: input.accountId, userId: ctx.userId } });
+      if (!account) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Salda da sola ogni carta di credito scaduta prima di leggere — stesso
+      // motivo di listAccountsWithBalance (server/accountBalances.ts):
+      // altrimenti un addebito appena avvenuto potrebbe non comparire ancora.
+      await settleOverdueCardCharges(ctx.prisma, ctx.userId);
+
+      const period = getCurrentFinancialPeriod(input.referenceDate);
+      const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
+
+      const movements = await ctx.prisma.cashMovement.findMany({
+        where: { accountId: input.accountId, date: { gte: period.start, lte: period.end } },
+        include: {
+          paymentSchedule: {
+            select: {
+              installmentNo: true,
+              paymentPlan: {
+                select: {
+                  type: true,
+                  installmentsCount: true,
+                  expense: { select: { category: { select: { icon: true, name: true } } } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { date: "desc" },
+      });
+
+      const total = movements.reduce((sum, m) => sum.plus(m.amount), new Prisma.Decimal(0));
+
+      return { account, period, isCurrentPeriod, movements, total };
     }),
 });

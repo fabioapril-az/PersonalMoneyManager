@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/domain/labels";
@@ -198,15 +199,19 @@ function AccountRow({ account }: { account: AccountListItem }) {
           </form>
         </DialogContent>
       </Dialog>
-      <Button
-        variant="outline"
-        size="sm"
-        className="shrink-0"
-        disabled={setArchived.isPending}
-        onClick={() => setArchived.mutate({ id: account.id, archived: !account.archived })}
-      >
-        {account.archived ? "Riattiva" : "Archivia"}
-      </Button>
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Per verificare un addebito reale (es. l'estratto conto arrivato
+            oggi) contro quello registrato — vedi app/conti/[id]. */}
+        <Button variant="outline" size="sm" render={<Link href={`/conti/${account.id}`}>Movimenti</Link>} />
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={setArchived.isPending}
+          onClick={() => setArchived.mutate({ id: account.id, archived: !account.archived })}
+        >
+          {account.archived ? "Riattiva" : "Archivia"}
+        </Button>
+      </div>
     </Card>
   );
 }
