@@ -1,11 +1,6 @@
 import type { Context } from "./context";
-import { computeNextRunDate } from "@/lib/domain/recurring";
+import { computeDueOccurrences } from "@/lib/domain/recurring";
 import type { RecurringFrequency } from "@/lib/domain/enums";
-
-// Tetto di sicurezza al recupero arretrati per un singolo template in
-// un'unica chiamata — non deve mai poter esplodere in un loop indefinito su
-// dati corrotti (es. nextRunDate rimasto fermo per un bug).
-const MAX_CATCH_UP_PER_TEMPLATE = 36;
 
 /**
  * Genera automaticamente le spese dovute da ogni template ricorrente attivo
@@ -16,8 +11,10 @@ const MAX_CATCH_UP_PER_TEMPLATE = 36;
  *
  * Recupera anche le occorrenze arretrate se l'utente non apre l'app per un
  * po' — una spesa per ciascuna occorrenza mancata, non solo l'ultima, fino al
- * tetto di sicurezza sopra — così non si perde la storia (es. due mesi di
- * Netflix non aperti diventano due spese distinte, non una sola).
+ * tetto di sicurezza di computeDueOccurrences (lib/domain/recurring.ts, dove
+ * vive tutta la decisione "quali occorrenze sono dovute") — così non si
+ * perde la storia (es. due mesi di Netflix non aperti diventano due spese
+ * distinte, non una sola).
  *
  * Ogni occorrenza generata parte in stato PLANNED, non RECORDED: è solo un
  * promemoria finché l'utente non la conferma (expense.update, che la porta a
@@ -36,12 +33,12 @@ export async function generateDueRecurringExpenses(prisma: Context["prisma"], us
   if (due.length === 0) return;
 
   for (const template of due) {
-    const occurrences: Date[] = [];
-    let nextRunDate = template.nextRunDate;
-    while (nextRunDate.getTime() <= Date.now() && occurrences.length < MAX_CATCH_UP_PER_TEMPLATE) {
-      occurrences.push(nextRunDate);
-      nextRunDate = computeNextRunDate(nextRunDate, template.frequency as RecurringFrequency, template.dayOfMonth);
-    }
+    const { occurrences, nextRunDate } = computeDueOccurrences(
+      template.nextRunDate,
+      template.frequency as RecurringFrequency,
+      template.dayOfMonth,
+      new Date()
+    );
     if (occurrences.length === 0) continue;
 
     await prisma.$transaction([

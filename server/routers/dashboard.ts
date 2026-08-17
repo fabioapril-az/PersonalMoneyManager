@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
+import { selectBudgetExpenses } from "@/lib/domain/budget";
 import { listAccountsWithBalance } from "../accountBalances";
 import { generateDueRecurringExpenses } from "../generateDueRecurringExpenses";
 import { protectedProcedure, router } from "../trpc";
@@ -138,9 +139,7 @@ export const dashboardRouter = router({
       //   le rate appartenenti al periodo"): pesano alla data di SCADENZA di
       //   ogni singola rata, una alla volta — non tutto l'importo in un
       //   colpo sul mese dell'acquisto.
-      const budgetExpenses = expenses.filter(
-        (e) => e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals
-      );
+      const budgetExpenses = selectBudgetExpenses(expenses);
       const budgetSpent = budgetExpenses
         .reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0))
         .plus(schedulesDueInPeriod.reduce((sum, s) => sum.plus(s.amount), new Prisma.Decimal(0)));

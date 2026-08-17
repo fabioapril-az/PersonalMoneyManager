@@ -39,3 +39,38 @@ export function computeNextRunDate(current: Date, frequency: RecurringFrequency,
     }
   }
 }
+
+export type DueOccurrences = {
+  occurrences: Date[];
+  nextRunDate: Date;
+};
+
+// Tetto di sicurezza al recupero arretrati per un singolo template in
+// un'unica chiamata — non deve mai poter esplodere in un loop indefinito su
+// dati corrotti (es. nextRunDate rimasto fermo per un bug).
+const DEFAULT_MAX_CATCH_UP = 36;
+
+/**
+ * Quali occorrenze di un template ricorrente sono dovute a `now`, a partire
+ * dall'ultima `nextRunDate` nota (PRD sezione 9, Regola 7) — una per ciascuna
+ * scadenza mancata, non solo l'ultima (se l'utente non apre l'app per un
+ * po', il recupero genera una spesa per ogni mese saltato, non una sola),
+ * fino a `maxCatchUp` per sicurezza. Pura: non scrive nulla — vedi
+ * server/generateDueRecurringExpenses.ts per l'esecuzione (crea le Expense,
+ * salva la nextRunDate restituita qui).
+ */
+export function computeDueOccurrences(
+  nextRunDate: Date,
+  frequency: RecurringFrequency,
+  dayOfMonth: number,
+  now: Date,
+  maxCatchUp: number = DEFAULT_MAX_CATCH_UP
+): DueOccurrences {
+  const occurrences: Date[] = [];
+  let current = nextRunDate;
+  while (current.getTime() <= now.getTime() && occurrences.length < maxCatchUp) {
+    occurrences.push(current);
+    current = computeNextRunDate(current, frequency, dayOfMonth);
+  }
+  return { occurrences, nextRunDate: current };
+}

@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
-import { computeCardStatementDate } from "@/lib/domain/creditCard";
-import { computeInstallmentDueDate, splitIntoInstallments } from "@/lib/domain/installments";
+import { decideExpensePlan } from "@/lib/domain/expensePlan";
 import { protectedProcedure, router } from "../trpc";
 
 const createExpenseSchema = z.object({
@@ -192,80 +191,55 @@ async function createExpenseChain(
     },
   });
 
-  const isInstallments = input.installments != null && input.installments > 1;
-  const isCreditCard = !isInstallments && account.type === "CREDIT_CARD";
+  // decideExpensePlan (lib/domain/expensePlan.ts) prende la decisione — tipo
+  // di piano, quante scadenze, a quali date/importi/stato, quale genera
+  // subito un movimento di cassa. Qui restano solo le scritture.
+  const plan = decideExpensePlan({
+    amount: input.amount,
+    purchaseDate: input.date,
+    installments: input.installments,
+    account,
+  });
 
   const paymentPlan = await tx.paymentPlan.create({
     data: {
       expenseId: expense.id,
-      type: isInstallments ? "INSTALLMENTS" : isCreditCard ? "CREDIT_CARD" : "IMMEDIATE",
+      type: plan.type,
       accountId: input.accountId,
-      installmentsCount: isInstallments ? input.installments : 1,
+      installmentsCount: plan.installmentsCount,
       startDate: input.date,
     },
   });
 
-  if (isInstallments) {
-    const amounts = splitIntoInstallments(input.amount, input.installments as number);
-    for (let i = 0; i < amounts.length; i++) {
-      const installmentNo = i + 1;
-      const isFirst = installmentNo === 1;
-      const schedule = await tx.paymentSchedule.create({
-        data: {
-          paymentPlanId: paymentPlan.id,
-          dueDate: computeInstallmentDueDate(input.date, installmentNo),
-          amount: amounts[i],
-          status: isFirst ? "PAID" : "PENDING",
-          installmentNo,
-        },
-      });
-
-      // Solo la prima rata è un movimento reale ora — le altre restano in
-      // attesa (Impegni futuri) finché non vengono saldate (paymentSchedule.markPaid).
-      if (isFirst) {
-        await tx.cashMovement.create({
-          data: {
-            accountId: input.accountId,
-            date: input.date,
-            amount: -amounts[i],
-            type: "INSTALLMENT_PAYMENT",
-            status: "EXECUTED",
-            description: input.description,
-            paymentScheduleId: schedule.id,
-          },
-        });
-      }
-    }
-    return expense;
-  }
-
-  const dueDate = isCreditCard ? computeCardStatementDate(input.date, account.statementDay as number) : input.date;
-
-  const schedule = await tx.paymentSchedule.create({
-    data: {
-      paymentPlanId: paymentPlan.id,
-      dueDate,
-      amount: input.amount,
-      status: isCreditCard ? "PENDING" : "PAID",
-      installmentNo: 1,
-    },
-  });
-
-  if (!isCreditCard) {
-    await tx.cashMovement.create({
+  for (const schedule of plan.schedules) {
+    const created = await tx.paymentSchedule.create({
       data: {
-        accountId: input.accountId,
-        date: input.date,
-        amount: -input.amount, // signed: negative = money out (input.amount is always positive, zod-validated)
-        type: "OTHER",
-        status: "EXECUTED",
-        description: input.description,
-        paymentScheduleId: schedule.id,
+        paymentPlanId: paymentPlan.id,
+        dueDate: schedule.dueDate,
+        amount: schedule.amount,
+        status: schedule.status,
+        installmentNo: schedule.installmentNo,
       },
     });
+
+    // Solo la scadenza segnata dal piano è un movimento reale ora — le altre
+    // (rate successive alla prima, addebito carta non ancora fatturato)
+    // restano in attesa ("Impegni futuri") finché non vengono saldate
+    // (paymentSchedule.markPaid crea il CashMovement allora).
+    if (schedule.createsCashMovementNow) {
+      await tx.cashMovement.create({
+        data: {
+          accountId: input.accountId,
+          date: input.date,
+          amount: -schedule.amount, // signed: negative = money out (schedule.amount è sempre positivo)
+          type: plan.type === "INSTALLMENTS" ? "INSTALLMENT_PAYMENT" : "OTHER",
+          status: "EXECUTED",
+          description: input.description,
+          paymentScheduleId: created.id,
+        },
+      });
+    }
   }
-  // Carta di credito: nessun CashMovement ora — vedi paymentSchedule.ts
-  // markPaid, che lo crea alla data reale di addebito.
 
   return expense;
 }
