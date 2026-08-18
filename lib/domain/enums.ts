@@ -67,3 +67,10 @@ export const recurringFrequencySchema = z.enum(RECURRING_FREQUENCIES);
 export const REPORT_GRANULARITIES = ["MONTHLY", "QUARTERLY", "YEARLY"] as const;
 export type ReportGranularity = (typeof REPORT_GRANULARITIES)[number];
 export const reportGranularitySchema = z.enum(REPORT_GRANULARITIES);
+
+// Cosa può essere cancellato e finire nel registro delle cancellazioni
+// (DeletionLogEntry, vedi schema.prisma) — un tipo per ciascun router che ha
+// una mutation "delete".
+export const DELETION_ENTITY_TYPES = ["EXPENSE", "INCOME", "TRANSFER", "RECURRING_TEMPLATE", "CATEGORY"] as const;
+export type DeletionEntityType = (typeof DELETION_ENTITY_TYPES)[number];
+export const deletionEntityTypeSchema = z.enum(DELETION_ENTITY_TYPES);

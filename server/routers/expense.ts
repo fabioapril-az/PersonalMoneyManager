@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { decideExpensePlan } from "@/lib/domain/expensePlan";
+import { logDeletion } from "../logDeletion";
 import { protectedProcedure, router } from "../trpc";
 
 // z.object prima, .refine() dopo su ciascuna variante (create/update) — non
@@ -154,6 +155,12 @@ export const expenseRouter = router({
 
     return ctx.prisma.$transaction(async (tx) => {
       await deleteExpenseChain(tx, input.id);
+      await logDeletion(tx, ctx.userId, {
+        entityType: "EXPENSE",
+        description: existing.description,
+        amount: Number(existing.amount),
+        date: existing.date,
+      });
       return { success: true } as const;
     });
   }),

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { logDeletion } from "../logDeletion";
 import { protectedProcedure, router } from "../trpc";
 
 const createTransferSchema = z
@@ -69,6 +70,18 @@ export const transferRouter = router({
       if (legs.length === 0) throw new TRPCError({ code: "NOT_FOUND" });
 
       await ctx.prisma.cashMovement.deleteMany({ where: { transferGroupId: input.transferGroupId } });
+
+      // Una riga sola nel log per l'intero trasferimento (due CashMovement,
+      // una gamba ciascuno) — quella in uscita (amount negativo) ha già una
+      // descrizione leggibile ("Trasferimento a X").
+      const outgoingLeg = legs.find((leg) => Number(leg.amount) < 0) ?? legs[0];
+      await logDeletion(ctx.prisma, ctx.userId, {
+        entityType: "TRANSFER",
+        description: outgoingLeg.description ?? "Trasferimento",
+        amount: Math.abs(Number(outgoingLeg.amount)),
+        date: outgoingLeg.date,
+      });
+
       return { success: true } as const;
     }),
 });

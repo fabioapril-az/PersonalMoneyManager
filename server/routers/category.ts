@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { Prisma } from "@/app/generated/prisma/client";
+import { logDeletion } from "../logDeletion";
 import { protectedProcedure, router } from "../trpc";
 
 // Icona: un'emoji (o qualunque stringa breve) — vedi CategoriesManager.tsx
@@ -82,6 +83,8 @@ export const categoryRouter = router({
       }
       throw error;
     }
+
+    await logDeletion(ctx.prisma, ctx.userId, { entityType: "CATEGORY", description: category.name });
 
     return { success: true } as const;
   }),

@@ -1,4 +1,4 @@
-import type { AccountType, CashMovementType, ReportGranularity, RecurringFrequency } from "./enums";
+import type { AccountType, CashMovementType, ReportGranularity, RecurringFrequency, DeletionEntityType } from "./enums";
 
 // Italian labels for the closed-set values in lib/domain/enums.ts — kept
 // separate from the enums themselves so this file (UI concern) can grow
@@ -38,4 +38,13 @@ export const RECURRING_FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
   WEEKLY: "Settimanale",
   MONTHLY: "Mensile",
   YEARLY: "Annuale",
+};
+
+// Registro delle cancellazioni (app/eliminazioni) — vedi DeletionLogEntry in schema.prisma.
+export const DELETION_ENTITY_TYPE_LABELS: Record<DeletionEntityType, string> = {
+  EXPENSE: "Spesa",
+  INCOME: "Entrata",
+  TRANSFER: "Trasferimento",
+  RECURRING_TEMPLATE: "Ricorrenza",
+  CATEGORY: "Categoria",
 };

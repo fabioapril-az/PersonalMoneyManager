@@ -104,6 +104,17 @@ export const recurringTemplateRouter = router({
       ctx.prisma.expense.deleteMany({ where: { recurringTemplateId: input.id, status: "PLANNED" } }),
       ctx.prisma.expense.updateMany({ where: { recurringTemplateId: input.id }, data: { recurringTemplateId: null } }),
       ctx.prisma.recurringTemplate.delete({ where: { id: input.id } }),
+      // Creata qui in linea, non con server/logDeletion.ts: questo router usa
+      // la forma "array" di $transaction (operazioni pre-costruite, non una
+      // callback (tx) => {...}), che il helper condiviso non supporta.
+      ctx.prisma.deletionLogEntry.create({
+        data: {
+          userId: ctx.userId,
+          entityType: "RECURRING_TEMPLATE",
+          description: existing.name,
+          amount: existing.amount,
+        },
+      }),
     ]);
     return { success: true } as const;
   }),

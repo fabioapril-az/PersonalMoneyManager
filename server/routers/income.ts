@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
+import { logDeletion } from "../logDeletion";
 import { protectedProcedure, router } from "../trpc";
 
 const createIncomeSchema = z.object({
@@ -98,6 +99,12 @@ export const incomeRouter = router({
       // it first, or Income.delete fails with a foreign key violation.
       await tx.cashMovement.deleteMany({ where: { incomeId: input.id } });
       await tx.income.delete({ where: { id: input.id } });
+      await logDeletion(tx, ctx.userId, {
+        entityType: "INCOME",
+        description: income.source,
+        amount: Number(income.amount),
+        date: income.date,
+      });
       return { success: true } as const;
     });
   }),
