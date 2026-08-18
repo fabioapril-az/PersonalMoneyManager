@@ -59,6 +59,21 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
+  // 2FA (TOTP, es. Google Authenticator/Authy) — vedi lib/auth/totp.ts e
+  // auth.ts. totpSecret è scritto già alla prima generazione (prima ancora
+  // che l'utente confermi di averlo scansionato), ma il login lo richiede
+  // solo quando totpEnabled è true — così un setup mai completato resta
+  // innocuo invece di lasciare l'account in uno stato a metà.
+  totpSecret  String?
+  totpEnabled Boolean @default(false)
+
+  // Blocco temporaneo dopo troppi tentativi di login falliti (password
+  // sbagliata O codice 2FA sbagliato, vedi auth.ts) — in tabella, non in
+  // memoria: un'istanza su piano Free va in stop/riparte spesso, un
+  // contatore in RAM si azzererebbe troppo spesso per essere utile.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   // Un unico tetto di spesa mensile complessivo, confrontato con il totale
   // delle Expense del periodo (non con "Disponibile" — quello resta
   // Entrate-Spese, PRD sezione 11). Deliberatamente un singolo valore, non

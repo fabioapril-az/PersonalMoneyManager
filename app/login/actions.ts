@@ -10,6 +10,7 @@ export async function authenticate(_prevState: LoginState, formData: FormData): 
     await signIn("credentials", {
       email: formData.get("email"),
       password: formData.get("password"),
+      totpCode: formData.get("totpCode"),
       redirectTo: "/",
     });
     return undefined;
@@ -18,7 +19,10 @@ export async function authenticate(_prevState: LoginState, formData: FormData): 
     // pass through untouched, or a successful login would render this
     // catch block's error message instead of actually redirecting.
     if (error instanceof AuthError) {
-      return { error: "Email o password non corretti." };
+      // Un solo messaggio per ogni causa (password sbagliata, codice 2FA
+      // sbagliato/mancante, blocco per troppi tentativi) — vedi il commento
+      // in auth.ts sul perché non distinguiamo.
+      return { error: "Email, password o codice non corretti (o troppi tentativi: riprova tra qualche minuto)." };
     }
     throw error;
   }

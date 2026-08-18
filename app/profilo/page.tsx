@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { LogoutButton } from "../logout-button";
 import { BottomNav } from "../BottomNav";
 import { ChangePasswordForm } from "./ChangePasswordForm";
+import { TwoFactorSetup } from "./TwoFactorSetup";
 
 export default async function ProfiloPage() {
   const session = await auth();
@@ -17,6 +18,7 @@ export default async function ProfiloPage() {
         <p className="text-sm text-ink-500 dark:text-ink-400">{session?.user?.email}</p>
       </div>
       <ChangePasswordForm />
+      <TwoFactorSetup />
       <BottomNav logoutSlot={<LogoutButton />} />
     </div>
   );
