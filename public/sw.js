@@ -28,3 +28,28 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE_URL)));
 });
+
+// Notifiche di sicurezza (tentativi di login falliti/blocchi — server/
+// sendSecurityPush.ts) — mai dati finanziari nel payload, solo un titolo e
+// un testo breve già pensati per essere mostrati così come sono.
+self.addEventListener("push", (event) => {
+  let data = { title: "Personal Money Manager", body: "" };
+  try {
+    if (event.data) data = event.data.json();
+  } catch {
+    // Payload non in JSON: mostra comunque qualcosa invece di far fallire l'evento.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/192",
+      badge: "/icons/192",
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(self.clients.openWindow("/accessi"));
+});

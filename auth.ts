@@ -4,6 +4,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { verifyTotpCode } from "@/lib/auth/totp";
+import { logLoginAttempt } from "@/server/logLoginAttempt";
+import { sendSecurityPush } from "@/server/sendSecurityPush";
+import type { LoginOutcome } from "@/lib/domain/enums";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -12,6 +15,13 @@ const credentialsSchema = z.object({
   // form di login lo mostra sempre, ma resta vuoto/ignorato finché non è
   // stato attivato (vedi la logica sotto).
   totpCode: z.string().optional(),
+  // ip/userAgent: letti dalla vera richiesta in app/login/actions.ts (headers()
+  // di Next.js), non dal parametro `request` di authorize() — passare da qui
+  // evita di dipendere da come Auth.js inoltra internamente gli header
+  // quando signIn() è chiamato da una Server Action invece che da un fetch
+  // diretto al suo handler.
+  ip: z.string().optional(),
+  userAgent: z.string().optional(),
 });
 
 // Blocco temporaneo dopo troppi tentativi falliti (password sbagliata O
@@ -48,22 +58,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(rawCredentials) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
+        const { email, password, totpCode, ip, userAgent } = parsed.data;
+        const ipAddress = ip ?? null;
+        const ua = userAgent ?? null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
-        });
-        if (!user) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
 
         // Un solo messaggio generico per ogni causa di fallimento (vedi
         // app/login/actions.ts) — non riveliamo se è colpa della password,
-        // del codice, o di un blocco in corso: a un attaccante non serve
-        // sapere quale delle tre cose sta sbagliando.
-        if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+        // del codice, di un blocco in corso, o di un'email inesistente: a un
+        // attaccante non serve sapere quale delle quattro cose sta
+        // sbagliando. Il registro degli accessi (app/accessi) distingue
+        // internamente il motivo — quello è solo per te.
+        if (!user) {
+          await logLoginAttempt(prisma, { userId: null, email, outcome: "UNKNOWN_EMAIL", ipAddress, userAgent: ua });
+          await sendSecurityPush(prisma, "Tentativo di accesso fallito", `Email sconosciuta: ${email}`);
           return null;
         }
 
-        const passwordValid = await verifyPassword(parsed.data.password, user.passwordHash);
-        const totpValid = !user.totpEnabled || (!!user.totpSecret && !!parsed.data.totpCode && verifyTotpCode(user.totpSecret, user.email, parsed.data.totpCode));
+        if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+          await logLoginAttempt(prisma, { userId: user.id, email, outcome: "LOCKED_OUT", ipAddress, userAgent: ua });
+          await sendSecurityPush(
+            prisma,
+            "Accesso bloccato",
+            "Un tentativo di accesso è arrivato mentre l'account è temporaneamente bloccato."
+          );
+          return null;
+        }
+
+        const passwordValid = await verifyPassword(password, user.passwordHash);
+        const totpValid =
+          !user.totpEnabled || (!!user.totpSecret && !!totpCode && verifyTotpCode(user.totpSecret, user.email, totpCode));
 
         if (!passwordValid || !totpValid) {
           const attempts = user.failedLoginAttempts + 1;
@@ -75,6 +100,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               lockedUntil: lockingOut ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000) : null,
             },
           });
+
+          const outcome: LoginOutcome = !passwordValid ? "WRONG_PASSWORD" : "WRONG_TOTP";
+          await logLoginAttempt(prisma, { userId: user.id, email, outcome, ipAddress, userAgent: ua });
+          await sendSecurityPush(
+            prisma,
+            lockingOut ? "Account bloccato" : "Tentativo di accesso fallito",
+            lockingOut
+              ? `Troppi tentativi falliti — bloccato per ${LOCKOUT_MINUTES} minuti.`
+              : `${outcome === "WRONG_PASSWORD" ? "Password" : "Codice 2FA"} errato${ipAddress ? ` da ${ipAddress}` : ""}.`
+          );
           return null;
         }
 
@@ -82,6 +117,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { id: user.id },
           data: { failedLoginAttempts: 0, lockedUntil: null },
         });
+        await logLoginAttempt(prisma, { userId: user.id, email, outcome: "SUCCESS", ipAddress, userAgent: ua });
 
         return { id: user.id, email: user.email, name: user.name };
       },

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Receipt, Target, PieChart, MoreHorizontal, Landmark, Tag, User, Repeat, Trash2 } from "lucide-react";
+import { Home, Receipt, Target, PieChart, MoreHorizontal, Landmark, Tag, User, Repeat, Trash2, ShieldCheck } from "lucide-react";
 
 // Sostituisce la fila di link testuali in alto (6 voci, affollava la testata
 // soprattutto su telefono, dove questa app si usa di più) — barra fissa in
@@ -22,6 +22,7 @@ const MORE_LINKS = [
   { href: "/categorie", label: "Categorie", icon: Tag },
   { href: "/ricorrenze", label: "Ricorrenze", icon: Repeat },
   { href: "/eliminazioni", label: "Eliminazioni", icon: Trash2 },
+  { href: "/accessi", label: "Accessi", icon: ShieldCheck },
   { href: "/profilo", label: "Profilo", icon: User },
 ];
 

@@ -89,6 +89,8 @@ model User {
   recurringTemplates RecurringTemplate[]
   budgets            Budget[]
   deletionLogEntries DeletionLogEntry[]
+  loginAttempts      LoginAttempt[]
+  pushSubscriptions  PushSubscription[]
 }
 
 model Account {
@@ -371,4 +373,37 @@ model DeletionLogEntry {
   deletedAt   DateTime @default(now())
 
   @@index([userId, deletedAt])
+}
+
+// Registro degli accessi — ogni tentativo di login, riuscito o no (auth.ts).
+// userId è opzionale: un tentativo con un'email che non corrisponde a nessun
+// utente (bot, email digitata a caso) non ha un utente a cui collegarsi, ma
+// vale comunque la pena registrarlo — è comunque un segnale di qualcuno che
+// bussa alla porta. Solo lettura per l'utente (app/accessi).
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  email     String
+  outcome   String   @db.VarChar(20) // LoginOutcome, see lib/domain/enums.ts
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Una sottoscrizione Web Push per un dispositivo (server/sendSecurityPush.ts)
+// — endpoint/chiavi che il browser genera quando l'utente attiva le notifiche
+// (app/profilo/SecurityNotifications.tsx). Una riga per dispositivo/browser,
+// non per utente: la stessa persona può avere più dispositivi sottoscritti.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  endpoint  String   @unique @db.VarChar(500)
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
 }

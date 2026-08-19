@@ -74,3 +74,8 @@ export const reportGranularitySchema = z.enum(REPORT_GRANULARITIES);
 export const DELETION_ENTITY_TYPES = ["EXPENSE", "INCOME", "TRANSFER", "RECURRING_TEMPLATE", "CATEGORY"] as const;
 export type DeletionEntityType = (typeof DELETION_ENTITY_TYPES)[number];
 export const deletionEntityTypeSchema = z.enum(DELETION_ENTITY_TYPES);
+
+// Esito di un tentativo di login (LoginAttempt, vedi schema.prisma e auth.ts).
+export const LOGIN_OUTCOMES = ["SUCCESS", "WRONG_PASSWORD", "WRONG_TOTP", "LOCKED_OUT", "UNKNOWN_EMAIL"] as const;
+export type LoginOutcome = (typeof LOGIN_OUTCOMES)[number];
+export const loginOutcomeSchema = z.enum(LOGIN_OUTCOMES);

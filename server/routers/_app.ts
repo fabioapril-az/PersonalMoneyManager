@@ -12,6 +12,8 @@ import { transferRouter } from "./transfer";
 import { reportRouter } from "./report";
 import { recurringTemplateRouter } from "./recurringTemplate";
 import { deletionLogRouter } from "./deletionLog";
+import { loginAttemptRouter } from "./loginAttempt";
+import { pushRouter } from "./push";
 
 export const appRouter = router({
   period: periodRouter,
@@ -27,6 +29,8 @@ export const appRouter = router({
   report: reportRouter,
   recurringTemplate: recurringTemplateRouter,
   deletionLog: deletionLogRouter,
+  loginAttempt: loginAttemptRouter,
+  push: pushRouter,
 });
 
 export type AppRouter = typeof appRouter;

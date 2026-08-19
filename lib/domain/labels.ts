@@ -1,4 +1,11 @@
-import type { AccountType, CashMovementType, ReportGranularity, RecurringFrequency, DeletionEntityType } from "./enums";
+import type {
+  AccountType,
+  CashMovementType,
+  ReportGranularity,
+  RecurringFrequency,
+  DeletionEntityType,
+  LoginOutcome,
+} from "./enums";
 
 // Italian labels for the closed-set values in lib/domain/enums.ts — kept
 // separate from the enums themselves so this file (UI concern) can grow
@@ -47,4 +54,13 @@ export const DELETION_ENTITY_TYPE_LABELS: Record<DeletionEntityType, string> = {
   TRANSFER: "Trasferimento",
   RECURRING_TEMPLATE: "Ricorrenza",
   CATEGORY: "Categoria",
+};
+
+// Registro degli accessi (app/accessi) — vedi LoginAttempt in schema.prisma.
+export const LOGIN_OUTCOME_LABELS: Record<LoginOutcome, string> = {
+  SUCCESS: "Accesso riuscito",
+  WRONG_PASSWORD: "Password errata",
+  WRONG_TOTP: "Codice 2FA errato",
+  LOCKED_OUT: "Bloccato (troppi tentativi)",
+  UNKNOWN_EMAIL: "Email sconosciuta",
 };
