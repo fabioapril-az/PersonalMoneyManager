@@ -2,6 +2,8 @@ import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma/client";
 import { reportGranularitySchema } from "@/lib/domain/enums";
 import { GRANULARITY_PERIOD_COUNT, getCurrentFinancialPeriod, getRecentPeriods } from "@/lib/domain/period";
+import { splitPeriodIntoWeeks } from "@/lib/domain/budget";
+import { computeBudgetForPeriod } from "../computeBudgetForPeriod";
 import { protectedProcedure, router } from "../trpc";
 
 const summaryInputSchema = z
@@ -154,4 +156,42 @@ export const reportRouter = router({
       trend,
     };
   }),
+
+  // "Quanto posso ancora spendere prima del prossimo stipendio?" (PRD sezione
+  // 1), letta settimana per settimana invece che a fine periodo — sempre sul
+  // SOLO periodo mostrato (mai una finestra di più periodi: la granularità
+  // Mensile/Trimestrale/Annuale sopra non c'entra qui, un budget settimanale
+  // "trimestrale" non avrebbe senso).
+  //
+  // Il periodo (27->26, 28-31 giorni) è diviso in esattamente 4 "settimane"
+  // fisse (lib/domain/budget.ts: splitPeriodIntoWeeks) — non settimane
+  // solari vere: coerente con come il resto dell'app evita apposta il
+  // calendario solare, e dà un budget settimanale sempre uguale (budget
+  // mensile / 4) invece di uno che varia in base a quante settimane "vere"
+  // cadono nel periodo.
+  weeklyBudget: protectedProcedure
+    .input(z.object({ referenceDate: z.coerce.date().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const period = getCurrentFinancialPeriod(input?.referenceDate);
+      const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
+
+      const [user, { budgetLines }] = await Promise.all([
+        ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
+        // Stessa identica regola ibrida + "spalma sul Budget" di dashboard.ts
+        // (server/computeBudgetForPeriod.ts) — qui bucketizzata per settimana
+        // invece che sommata in un unico totale.
+        computeBudgetForPeriod(ctx.prisma, ctx.userId, period),
+      ]);
+
+      const budgetPerWeek = user.monthlyBudget != null ? new Prisma.Decimal(user.monthlyBudget).div(4) : null;
+
+      const weeks = splitPeriodIntoWeeks(period).map((week) => {
+        const spent = budgetLines
+          .filter((line) => line.date >= week.start && line.date <= week.end)
+          .reduce((sum, line) => sum.plus(line.amount), new Prisma.Decimal(0));
+        return { no: week.no, start: week.start, end: week.end, spent };
+      });
+
+      return { period, isCurrentPeriod, monthlyBudget: user.monthlyBudget, budgetPerWeek, weeks };
+    }),
 });

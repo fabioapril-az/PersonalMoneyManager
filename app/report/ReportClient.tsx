@@ -189,6 +189,88 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
   );
 }
 
+type WeekBudgetItem = {
+  no: number;
+  start: Date | string;
+  end: Date | string;
+  spent: unknown;
+};
+
+// "Quanto posso ancora spendere prima del prossimo stipendio?" letta
+// settimana per settimana (4 quote fisse del periodo mostrato, non
+// settimane solari — vedi il commento su weeklyBudget in
+// server/routers/report.ts) invece che a fine periodo. Ambra/corallo come
+// BudgetBar in DashboardClient.tsx, stesso significato (ambra = ok, corallo
+// = superato).
+function WeeklyBudgetSection({
+  weeks,
+  budgetPerWeek,
+  isCurrentPeriod,
+}: {
+  weeks: WeekBudgetItem[];
+  budgetPerWeek: unknown;
+  isCurrentPeriod: boolean;
+}) {
+  if (budgetPerWeek == null) {
+    return (
+      <div className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Budget settimanale</h2>
+        <p className="text-sm text-ink-500 dark:text-ink-400">
+          Imposta un Budget mensile (pagina &quot;Budget&quot;) per vedere l&apos;andamento settimanale.
+        </p>
+      </div>
+    );
+  }
+
+  const budgetPerWeekNumber = Number(budgetPerWeek);
+  const now = new Date();
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">
+        Budget settimanale ({formatAmount(budgetPerWeekNumber)}/settimana)
+      </h2>
+      <div className="flex flex-col gap-2">
+        {weeks.map((week) => {
+          const spent = Number(week.spent);
+          const percentUsed = budgetPerWeekNumber > 0 ? (spent / budgetPerWeekNumber) * 100 : 0;
+          const overBudget = percentUsed > 100;
+          const start = new Date(week.start);
+          const end = new Date(week.end);
+          const isCurrentWeek = isCurrentPeriod && now >= start && now <= end;
+          return (
+            <Card
+              key={week.no}
+              className={`flex flex-col gap-1.5 p-3 ${isCurrentWeek ? "ring-1 ring-teal-500 dark:ring-teal-400" : ""}`}
+            >
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ink-800 dark:text-ink-200">
+                  Settimana {week.no}
+                  {isCurrentWeek && (
+                    <span className="ml-1.5 text-xs font-normal text-teal-600 dark:text-teal-400">· in corso</span>
+                  )}
+                </span>
+                <span className="text-xs text-ink-500 dark:text-ink-400">
+                  {dateFormatter.format(start)} → {dateFormatter.format(end)}
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-ink-200 dark:bg-ink-800">
+                <div
+                  className={`h-1.5 rounded-full ${overBudget ? "bg-coral-600 dark:bg-coral-400" : "bg-amber-500 dark:bg-amber-400"}`}
+                  style={{ width: `${Math.min(100, Math.max(0, percentUsed))}%` }}
+                />
+              </div>
+              <span className="text-xs text-ink-500 dark:text-ink-400">
+                {formatAmount(week.spent)} / {formatAmount(budgetPerWeekNumber)}
+              </span>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Mensile/Trimestrale/Annuale — un semplice controllo segmentato, 3 opzioni
 // fisse non giustificano un <Select>.
 function GranularitySelector({
@@ -223,6 +305,11 @@ export function ReportClient() {
   // finestra, invece di saltare sempre a "oggi".
   const [referenceDate, setReferenceDate] = useState<Date | undefined>(undefined);
   const { data, isLoading } = trpc.report.summary.useQuery({ referenceDate, granularity });
+  // Sempre sul SOLO periodo più recente della finestra (data.period), mai
+  // sulla finestra intera — un budget settimanale "trimestrale" non avrebbe
+  // senso. Stesso referenceDate del report sopra: le stesse frecce
+  // prev/next spostano entrambi insieme.
+  const { data: weeklyBudgetData } = trpc.report.weeklyBudget.useQuery({ referenceDate });
 
   if (isLoading || !data) {
     return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
@@ -275,6 +362,14 @@ export function ReportClient() {
           </button>
         )}
       </div>
+
+      {weeklyBudgetData && (
+        <WeeklyBudgetSection
+          weeks={weeklyBudgetData.weeks}
+          budgetPerWeek={weeklyBudgetData.budgetPerWeek}
+          isCurrentPeriod={weeklyBudgetData.isCurrentPeriod}
+        />
+      )}
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-center gap-8">

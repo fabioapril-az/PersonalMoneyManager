@@ -61,3 +61,33 @@ export function computeBudgetSpreadShare(
   }
   return null;
 }
+
+export type BudgetWeek = {
+  /** 1-based, sempre 1-4. */
+  no: number;
+  start: Date;
+  end: Date;
+};
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Divide il periodo (27->26, 28-31 giorni) in esattamente 4 "settimane" per
+ * il Budget settimanale (Report) — le prime 3 sempre da 7 giorni, l'ultima
+ * si prende i giorni avanzati (7-10, secondo la lunghezza del periodo).
+ * Sempre esattamente 4 quote, mai un numero variabile: il budget settimanale
+ * (budget mensile / 4) resta un valore fisso indipendente dal mese —
+ * coerente con come il resto dell'app evita apposta il calendario solare
+ * (mai settimane a cavallo di due periodi diversi, vedi period.ts).
+ */
+export function splitPeriodIntoWeeks(period: FinancialPeriod): BudgetWeek[] {
+  const weeks: BudgetWeek[] = [];
+  let start = period.start;
+  for (let no = 1; no <= 4; no++) {
+    const isLast = no === 4;
+    const end = isLast ? period.end : new Date(start.getTime() + 7 * MS_PER_DAY - 1);
+    weeks.push({ no, start, end });
+    start = new Date(end.getTime() + 1);
+  }
+  return weeks;
+}

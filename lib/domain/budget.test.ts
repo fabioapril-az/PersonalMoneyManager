@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { selectBudgetExpenses, computeBudgetSpreadShare } from "./budget";
+import { selectBudgetExpenses, computeBudgetSpreadShare, splitPeriodIntoWeeks } from "./budget";
 import { getFinancialPeriod } from "./period";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function expense(paymentPlan: { type: string; account: { excludeFromTotals: boolean } } | null) {
   return { paymentPlan };
@@ -87,5 +89,48 @@ describe("computeBudgetSpreadShare", () => {
     expect(computeBudgetSpreadShare(paidDate, 240, 2, originPeriod)?.amount).toBe(120);
     const nextPeriod = getFinancialPeriod(new Date(Date.UTC(2026, 8, 28)));
     expect(computeBudgetSpreadShare(paidDate, 240, 2, nextPeriod)?.amount).toBe(120);
+  });
+});
+
+describe("splitPeriodIntoWeeks", () => {
+  it("splits a 31-day period (starting in a 31-day month) into 7/7/7/10", () => {
+    const period = getFinancialPeriod(new Date(Date.UTC(2026, 6, 27))); // lug 2026 (31gg) -> 27lug->26ago
+    const weeks = splitPeriodIntoWeeks(period);
+    expect(weeks).toHaveLength(4);
+    expect(weeks[0]).toEqual({ no: 1, start: new Date(Date.UTC(2026, 6, 27)), end: new Date(Date.UTC(2026, 7, 2, 23, 59, 59, 999)) });
+    expect(weeks[1].start.toISOString()).toBe(new Date(Date.UTC(2026, 7, 3)).toISOString());
+    expect(weeks[2].start.toISOString()).toBe(new Date(Date.UTC(2026, 7, 10)).toISOString());
+    expect(weeks[3].start.toISOString()).toBe(new Date(Date.UTC(2026, 7, 17)).toISOString());
+    // L'ultima quota finisce sempre esattamente con il periodo, qualunque sia
+    // il resto di giorni avanzati.
+    expect(weeks[3].end.getTime()).toBe(period.end.getTime());
+  });
+
+  it("splits a 28-day period (shortest, Feb non-leap) evenly into four 7-day weeks", () => {
+    const period = getFinancialPeriod(new Date(Date.UTC(2026, 1, 27))); // feb 2026 (non bisestile) -> 27feb->26mar, 28gg
+    const weeks = splitPeriodIntoWeeks(period);
+    for (const week of weeks) {
+      const days = (week.end.getTime() - week.start.getTime() + 1) / MS_PER_DAY;
+      expect(days).toBe(7);
+    }
+  });
+
+  it("never leaves a gap or overlap between consecutive weeks", () => {
+    const period = getFinancialPeriod(new Date(Date.UTC(2026, 6, 27)));
+    const weeks = splitPeriodIntoWeeks(period);
+    for (let i = 1; i < weeks.length; i++) {
+      expect(weeks[i].start.getTime()).toBe(weeks[i - 1].end.getTime() + 1);
+    }
+    expect(weeks[0].start.getTime()).toBe(period.start.getTime());
+    expect(weeks[weeks.length - 1].end.getTime()).toBe(period.end.getTime());
+  });
+
+  it("covers every day of the period exactly once, for a 29-day period too (leap Feb)", () => {
+    const period = getFinancialPeriod(new Date(Date.UTC(2028, 1, 27))); // 2028 bisestile: 27feb->26mar, 29gg
+    const weeks = splitPeriodIntoWeeks(period);
+    const totalDays = weeks.reduce((sum, w) => sum + (w.end.getTime() - w.start.getTime() + 1) / MS_PER_DAY, 0);
+    const periodDays = (period.end.getTime() - period.start.getTime() + 1) / MS_PER_DAY;
+    expect(periodDays).toBe(29);
+    expect(totalDays).toBe(periodDays);
   });
 });
