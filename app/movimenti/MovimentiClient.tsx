@@ -418,6 +418,8 @@ export function MovimentiClient() {
         // L'importo qui resta sempre quello pieno (Rule 4) — questo badge
         // spiega perché "Spese nel Budget" ne mostra invece solo una quota.
         e.budgetSpreadPeriods ? `spalmata su ${e.budgetSpreadPeriods} mesi` : null,
+        // Spiega perché questa spesa non compare affatto in "Spese nel Budget".
+        e.excludeFromBudget ? "🚫 Esclusa dal Budget" : null,
       ]
         .filter(Boolean)
         .join(" · "),

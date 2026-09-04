@@ -39,11 +39,17 @@ export async function computeBudgetForPeriod(prisma: Context["prisma"], userId: 
     // comunque il budget del periodo. Le spese con carta di credito NON sono
     // qui: contano alla data d'acquisto, insieme a quelle a pagamento
     // immediato — vedi budgetSpent sotto. Escluse le scadenze di conti "non
-    // soldi tuoi" (ticket pasto, ecc.).
+    // soldi tuoi" (ticket pasto, ecc.) e le spese "Escludi dal Budget"
+    // (excludeFromBudget) — una spesa a rate può comunque essere finanziata
+    // da risparmi già accantonati.
     prisma.paymentSchedule.findMany({
       where: {
         dueDate: { gte: period.start, lte: period.end },
-        paymentPlan: { type: "INSTALLMENTS", expense: { userId }, account: { excludeFromTotals: false } },
+        paymentPlan: {
+          type: "INSTALLMENTS",
+          expense: { userId, excludeFromBudget: false },
+          account: { excludeFromTotals: false },
+        },
       },
       include: {
         paymentPlan: {
@@ -75,6 +81,10 @@ export async function computeBudgetForPeriod(prisma: Context["prisma"], userId: 
         date: true,
         amount: true,
         budgetSpreadPeriods: true,
+        // Sempre false qui per costruzione (mutuamente esclusivo con
+        // budgetSpreadPeriods, applicato in expense.ts) — selezionata
+        // comunque per soddisfare il tipo di selectBudgetExpenses.
+        excludeFromBudget: true,
         description: true,
         category: { select: { icon: true, name: true } },
         paymentPlan: { select: { type: true, account: { select: { name: true, excludeFromTotals: true } } } },

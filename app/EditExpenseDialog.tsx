@@ -41,6 +41,8 @@ export type EditableExpense = {
   recurringTemplate?: { accountId: string } | null;
   // "Spalma sul Budget" — vedi il commento sul campo in schema.prisma.
   budgetSpreadPeriods?: number | null;
+  // "Escludi dal Budget" — vedi il commento sul campo in schema.prisma.
+  excludeFromBudget?: boolean;
 };
 
 export function EditExpenseDialog({
@@ -80,6 +82,7 @@ export function EditExpenseDialog({
   const [budgetSpreadPeriods, setBudgetSpreadPeriods] = useState(() =>
     String(Math.max(expense?.budgetSpreadPeriods ?? 2, 2))
   );
+  const [isExcludedFromBudget, setIsExcludedFromBudget] = useState(() => expense?.excludeFromBudget ?? false);
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -144,6 +147,7 @@ export function EditExpenseDialog({
       notes: notes || undefined,
       installments: isInstallments ? parsedInstallments : undefined,
       budgetSpreadPeriods: isBudgetSpread ? parsedSpread : undefined,
+      excludeFromBudget: isExcludedFromBudget || undefined,
     });
   }
 
@@ -244,7 +248,10 @@ export function EditExpenseDialog({
               onCheckedChange={(checked) => {
                 const next = checked === true;
                 setIsBudgetSpread(next);
-                if (next) setIsInstallments(false);
+                if (next) {
+                  setIsInstallments(false);
+                  setIsExcludedFromBudget(false);
+                }
               }}
             />
             <Label htmlFor="edit-expense-budget-spread-toggle" className="font-normal">
@@ -268,6 +275,26 @@ export function EditExpenseDialog({
                 in ciascuno dei successivi.
               </p>
             </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="edit-expense-exclude-budget-toggle"
+              checked={isExcludedFromBudget}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsExcludedFromBudget(next);
+                if (next) setIsBudgetSpread(false);
+              }}
+            />
+            <Label htmlFor="edit-expense-exclude-budget-toggle" className="font-normal">
+              Escludi dal Budget mensile
+            </Label>
+          </div>
+          {isExcludedFromBudget && (
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Per spese finanziate da risparmi già accantonati: esce dal conto per intero come sempre, ma non conta
+              mai nel Budget mensile.
+            </p>
           )}
           <DialogFooter>
             <Button type="submit" disabled={updateExpense.isPending}>

@@ -2,6 +2,7 @@ import { splitIntoInstallments } from "./installments";
 import { getFinancialPeriod, shiftPeriods, type FinancialPeriod } from "./period";
 
 type BudgetEligibleExpense = {
+  excludeFromBudget: boolean;
   paymentPlan: { type: string; account: { excludeFromTotals: boolean } } | null;
 };
 
@@ -17,9 +18,15 @@ type BudgetEligibleExpense = {
  *   per l'importo intero, doppiando il conteggio (Rule 1).
  * - conti "non soldi tuoi" (Account.excludeFromTotals, es. ticket pasto):
  *   mai, indipendentemente dal tipo di piano.
+ * - marcate "Escludi dal Budget" (Expense.excludeFromBudget, es. un viaggio
+ *   pagato con risparmi già accantonati): mai, a prescindere da tutto il
+ *   resto — diverso da "a rate": qui la spesa semplicemente non è mai stata
+ *   capacità di spesa di questo mese.
  */
 export function selectBudgetExpenses<T extends BudgetEligibleExpense>(expenses: T[]): T[] {
-  return expenses.filter((e) => e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals);
+  return expenses.filter(
+    (e) => !e.excludeFromBudget && e.paymentPlan?.type !== "INSTALLMENTS" && !e.paymentPlan?.account.excludeFromTotals
+  );
 }
 
 export type BudgetSpreadShare = {
@@ -90,4 +97,69 @@ export function splitPeriodIntoWeeks(period: FinancialPeriod): BudgetWeek[] {
     start = new Date(end.getTime() + 1);
   }
   return weeks;
+}
+
+export type AdaptiveWeeklyBudget = {
+  no: number;
+  start: Date;
+  end: Date;
+  spent: number;
+  /** budget mensile / 4, sempre lo stesso valore per tutte le settimane. */
+  baseBudget: number;
+  /** baseBudget rettificato in base a quanto sforato/risparmiato nelle settimane precedenti già concluse. */
+  adjustedBudget: number;
+  /** La settimana è già conclusa (rispetto a `now`): la sua differenza è stata ridistribuita in avanti. */
+  isFinal: boolean;
+};
+
+/**
+ * Budget settimanale "adattivo" (non la semplice divisione per 4 — PRD non
+ * originale): una settimana già CONCLUSA che sfora il proprio budget fa
+ * scalare la differenza sulle settimane ancora da venire (dividendola in
+ * parti uguali, budget più basso per ciascuna); una che risparmia fa
+ * l'opposto (budget più alto). Una settimana ancora in corso o futura non
+ * ridistribuisce nulla finché non è a sua volta conclusa — la sua
+ * differenza non è ancora definitiva. L'ultima settimana non ha "settimane
+ * dopo" a cui ridistribuire: il suo sforamento/risparmio finale si legge
+ * dal confronto sull'intero periodo (Budget mensile), non qui.
+ *
+ * `now` è sempre l'istante reale (non legato al periodo mostrato): se stai
+ * guardando un periodo passato, ogni sua settimana risulta già conclusa e
+ * la ridistribuzione si applica per intero; se stai guardando quello
+ * corrente, solo le settimane già finite contribuiscono.
+ */
+export function computeAdaptiveWeeklyBudget(
+  weeks: { no: number; start: Date; end: Date; spent: number }[],
+  monthlyBudget: number,
+  now: Date
+): AdaptiveWeeklyBudget[] {
+  const baseBudget = monthlyBudget / weeks.length;
+  const diffs: (number | null)[] = new Array(weeks.length).fill(null);
+  const adjusted: number[] = new Array(weeks.length).fill(baseBudget);
+  const isFinal: boolean[] = new Array(weeks.length).fill(false);
+
+  for (let i = 0; i < weeks.length; i++) {
+    let carry = 0;
+    for (let j = 0; j < i; j++) {
+      const diff = diffs[j];
+      if (diff == null) continue;
+      const remainingAfterJ = weeks.length - (j + 1);
+      if (remainingAfterJ > 0) carry += diff / remainingAfterJ;
+    }
+    adjusted[i] = baseBudget + carry;
+
+    const ended = weeks[i].end.getTime() < now.getTime();
+    isFinal[i] = ended;
+    if (ended) diffs[i] = adjusted[i] - weeks[i].spent;
+  }
+
+  return weeks.map((week, i) => ({
+    no: week.no,
+    start: week.start,
+    end: week.end,
+    spent: week.spent,
+    baseBudget,
+    adjustedBudget: adjusted[i],
+    isFinal: isFinal[i],
+  }));
 }

@@ -196,6 +196,20 @@ model Expense {
   // rata) — l'app non lascia impostare entrambi sulla stessa spesa.
   budgetSpreadPeriods Int?
 
+  // "Escludi dal Budget" (non nel PRD originale, discusso col caso "viaggio
+  // in Cina pagato con soldi già messi da parte da tempo"): quando true,
+  // questa spesa non conta MAI nel Budget mensile — non è la stessa cosa di
+  // budgetSpreadPeriods sopra (quello smussa nel tempo una spesa che
+  // comunque DEVE contare, es. una bolletta; questo esclude del tutto una
+  // spesa che semplicemente non è mai stata capacità di spesa "di questo
+  // mese", perché finanziata da risparmi precedenti). Mutuamente esclusivo
+  // con budgetSpreadPeriods (non ha senso spalmare qualcosa che non conta
+  // affatto) — vedi expense.ts. Compatibile con le rate: puoi pagare a rate
+  // qualcosa che comunque non deve mai pesare sul Budget. Deliberatamente
+  // NON tocca Disponibile/Report/"Spese e entrate", stesso principio di
+  // budgetSpreadPeriods — l'importo è comunque uscito davvero dal conto.
+  excludeFromBudget Boolean @default(false)
+
   // Every Expense always has exactly one PaymentPlan (PRD section 4). The
   // field below is optional only because Prisma requires the non-owning side
   // of a 1:1 relation to be nullable in the schema — the app layer must

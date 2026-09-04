@@ -65,6 +65,11 @@ export function NewExpenseDialog() {
   // onCheckedChange sotto: attivarne uno disattiva l'altro.
   const [isBudgetSpread, setIsBudgetSpread] = useState(false);
   const [budgetSpreadPeriods, setBudgetSpreadPeriods] = useState("2");
+  // "Escludi dal Budget" (es. un viaggio pagato con risparmi già
+  // accantonati) — mutuamente esclusivo solo con "Spalma sul Budget" (non
+  // ha senso spalmare qualcosa che non conta affatto), compatibile con le
+  // rate (puoi pagare a rate qualcosa che comunque non deve mai pesare).
+  const [isExcludedFromBudget, setIsExcludedFromBudget] = useState(false);
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -115,6 +120,7 @@ export function NewExpenseDialog() {
     setInstallments("3");
     setIsBudgetSpread(false);
     setBudgetSpreadPeriods("2");
+    setIsExcludedFromBudget(false);
     setOpen(false);
   }
 
@@ -149,6 +155,7 @@ export function NewExpenseDialog() {
       notes: notes || undefined,
       installments: isInstallments ? parsedInstallments : undefined,
       budgetSpreadPeriods: isBudgetSpread ? parsedSpread : undefined,
+      excludeFromBudget: isExcludedFromBudget || undefined,
     });
   }
 
@@ -278,7 +285,10 @@ export function NewExpenseDialog() {
               onCheckedChange={(checked) => {
                 const next = checked === true;
                 setIsBudgetSpread(next);
-                if (next) setIsInstallments(false);
+                if (next) {
+                  setIsInstallments(false);
+                  setIsExcludedFromBudget(false);
+                }
               }}
             />
             <Label htmlFor="expense-budget-spread-toggle" className="font-normal">
@@ -305,6 +315,26 @@ export function NewExpenseDialog() {
                 in questo mese e in ciascuno dei successivi.
               </p>
             </div>
+          )}
+          <div className="group/field flex items-center gap-2">
+            <Checkbox
+              id="expense-exclude-budget-toggle"
+              checked={isExcludedFromBudget}
+              onCheckedChange={(checked) => {
+                const next = checked === true;
+                setIsExcludedFromBudget(next);
+                if (next) setIsBudgetSpread(false);
+              }}
+            />
+            <Label htmlFor="expense-exclude-budget-toggle" className="font-normal">
+              Escludi dal Budget mensile
+            </Label>
+          </div>
+          {isExcludedFromBudget && (
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Per spese finanziate da risparmi già accantonati (es. un viaggio): esce dal conto per intero come
+              sempre, e resta visibile in Report/Spese e entrate — ma non conta mai nel Budget mensile.
+            </p>
           )}
           <DialogFooter>
             <Button type="submit" disabled={createExpense.isPending}>

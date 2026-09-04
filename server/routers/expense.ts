@@ -25,15 +25,26 @@ const expenseFieldsSchema = z.object({
   // Disponibile/CashMovement restano SEMPRE l'importo pieno, subito, a
   // differenza delle rate — solo il Budget legge questo campo.
   budgetSpreadPeriods: z.number().int().min(2).max(60).optional(),
+  // "Escludi dal Budget" (schema.prisma: Expense.excludeFromBudget) — spese
+  // finanziate da risparmi già accantonati (es. un viaggio), che non devono
+  // mai pesare sulla capacità di spesa del mese. Mutuamente esclusivo con
+  // budgetSpreadPeriods (non ha senso spalmare qualcosa che non conta
+  // affatto) — compatibile con le rate.
+  excludeFromBudget: z.boolean().optional(),
 });
 
-function refineMutualExclusivity<T extends z.ZodType<{ installments?: number; budgetSpreadPeriods?: number }>>(
-  schema: T
-) {
-  return schema.refine((data) => !(data.installments != null && data.budgetSpreadPeriods != null), {
-    message: "Una spesa non può essere sia a rate sia spalmata sul Budget: scegli una delle due.",
-    path: ["budgetSpreadPeriods"],
-  });
+function refineMutualExclusivity<
+  T extends z.ZodType<{ installments?: number; budgetSpreadPeriods?: number; excludeFromBudget?: boolean }>,
+>(schema: T) {
+  return schema
+    .refine((data) => !(data.installments != null && data.budgetSpreadPeriods != null), {
+      message: "Una spesa non può essere sia a rate sia spalmata sul Budget: scegli una delle due.",
+      path: ["budgetSpreadPeriods"],
+    })
+    .refine((data) => !(data.excludeFromBudget && data.budgetSpreadPeriods != null), {
+      message: "Una spesa non può essere sia esclusa dal Budget sia spalmata sul Budget: scegli una delle due.",
+      path: ["excludeFromBudget"],
+    });
 }
 
 const createExpenseSchema = refineMutualExclusivity(expenseFieldsSchema);
@@ -175,6 +186,7 @@ type ExpenseInput = {
   notes?: string;
   installments?: number;
   budgetSpreadPeriods?: number;
+  excludeFromBudget?: boolean;
 };
 
 type AccountForExpense = { type: string; statementDay: number | null; name: string };
@@ -216,10 +228,12 @@ async function createExpenseChain(
       // risultato è una spesa reale, quindi sempre RECORDED qui.
       status: "RECORDED",
       recurringTemplateId: recurringTemplateId ?? undefined,
-      // "Spalma sul Budget" (vedi il commento sul campo in schema.prisma) —
-      // non tocca nulla di quello che segue (PaymentPlan/Schedule/
-      // CashMovement): solo server/routers/dashboard.ts lo legge.
+      // "Spalma sul Budget"/"Escludi dal Budget" (vedi i commenti sui campi
+      // in schema.prisma) — non toccano nulla di quello che segue
+      // (PaymentPlan/Schedule/CashMovement): solo il calcolo del Budget
+      // (server/computeBudgetForPeriod.ts) li legge.
       budgetSpreadPeriods: input.budgetSpreadPeriods ?? undefined,
+      excludeFromBudget: input.excludeFromBudget ?? undefined,
     },
   });
 
