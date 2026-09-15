@@ -211,4 +211,97 @@ export const reportRouter = router({
 
       return { period, isCurrentPeriod, monthlyBudget: user.monthlyBudget, budgetSpent, weeks };
     }),
+
+  // "Cosa mi mangia il budget, e in quali categorie?" — la suddivisione per
+  // categoria di quello che concorre al BUDGET del periodo mostrato.
+  //
+  // Deliberatamente NON la stessa cosa del categoryBreakdown di summary sopra,
+  // che risponde a "dove vanno i miei soldi": quello è Expense-based (tutte le
+  // spese alla data d'acquisto, importo pieno), questo è Budget-based, cioè la
+  // regola ibrida di server/computeBudgetForPeriod.ts — rate contate rata per
+  // rata alla scadenza, spese "spalmate" contate a quota, fuori del tutto le
+  // "Escludi dal Budget" e i conti excludeFromTotals. I due totali NON devono
+  // tornare tra loro: rispondono a due domande diverse.
+  //
+  // onlyRecurring (default true): limita alle spese marcate "Spesa ricorrente"
+  // (Expense.isRecurringCost) — quanto del budget è impegnato da cose che
+  // tornano comunque. Spegnendolo si vede la stessa suddivisione su tutto il
+  // budget, così il confronto ricorrente/discrezionale è a un clic.
+  budgetByCategory: protectedProcedure
+    .input(
+      z
+        .object({
+          referenceDate: z.coerce.date().optional(),
+          onlyRecurring: z.boolean().default(true),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const period = getCurrentFinancialPeriod(input?.referenceDate);
+      const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
+      const onlyRecurring = input?.onlyRecurring ?? true;
+
+      const [user, categories, { budgetSpent, budgetLines }] = await Promise.all([
+        ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
+        // Solo per risalire alla categoria di primo livello: una
+        // sottocategoria conta nel totale del genitore, esattamente come nella
+        // torta di summary — due suddivisioni per categoria che raggruppassero
+        // a livelli diversi sarebbero incomprensibili da confrontare.
+        ctx.prisma.category.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true, parentId: true, name: true, icon: true },
+        }),
+        computeBudgetForPeriod(ctx.prisma, ctx.userId, period),
+      ]);
+
+      const categoryById = new Map(categories.map((c) => [c.id, c]));
+      function topLevelOf(categoryId: string) {
+        const category = categoryById.get(categoryId);
+        if (!category) return null;
+        if (!category.parentId) return category;
+        return categoryById.get(category.parentId) ?? category;
+      }
+
+      const lines = onlyRecurring ? budgetLines.filter((line) => line.isRecurringCost) : budgetLines;
+      const total = lines.reduce((sum, line) => sum.plus(line.amount), new Prisma.Decimal(0));
+
+      const totalsByTopCategory = new Map<string, Prisma.Decimal>();
+      // Le righe di BUDGET dietro ogni fetta, non le spese intere: una rata
+      // mostra il suo importo di rata ("rata 2/4"), una spesa spalmata la sua
+      // quota. Altrimenti la somma delle voci aperte non tornerebbe col totale
+      // della fetta che le contiene.
+      const linesByTopCategory = new Map<string, typeof lines>();
+      for (const line of lines) {
+        const top = topLevelOf(line.categoryId);
+        if (!top) continue;
+        totalsByTopCategory.set(top.id, (totalsByTopCategory.get(top.id) ?? new Prisma.Decimal(0)).plus(line.amount));
+        linesByTopCategory.set(top.id, [...(linesByTopCategory.get(top.id) ?? []), line]);
+      }
+
+      const monthlyBudget = user.monthlyBudget;
+      const categoryBreakdown = Array.from(totalsByTopCategory.entries())
+        .map(([categoryId, amount]) => {
+          const category = categoryById.get(categoryId)!;
+          return {
+            categoryId,
+            name: category.name,
+            icon: category.icon,
+            amount,
+            // Due percentuali diverse, entrambe utili: quanto pesa la categoria
+            // sul totale mostrato (la fetta della torta), e quanto si prende
+            // del Budget mensile — è la seconda a rispondere a "rispetto al
+            // budget", ma esiste solo se un Budget è stato impostato.
+            percent: total.isZero() ? 0 : amount.div(total).times(100).toNumber(),
+            percentOfBudget:
+              monthlyBudget == null || monthlyBudget.isZero() ? null : amount.div(monthlyBudget).times(100).toNumber(),
+            lines: linesByTopCategory.get(categoryId) ?? [],
+          };
+        })
+        .sort((a, b) => b.amount.comparedTo(a.amount));
+
+      // budgetSpent è il budget speso INTERO (ricorrenti + occasionali, sempre
+      // — non filtrato): con onlyRecurring acceso serve a dire "di quanto
+      // stiamo parlando rispetto al totale", altrimenti coincide con total.
+      return { period, isCurrentPeriod, onlyRecurring, monthlyBudget, total, budgetSpent, categoryBreakdown };
+    }),
 });

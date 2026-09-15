@@ -5,9 +5,16 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GRANULARITY_PERIOD_COUNT, shiftPeriods, type FinancialPeriod } from "@/lib/domain/period";
+import {
+  GRANULARITY_PERIOD_COUNT,
+  getCurrentFinancialPeriod,
+  getRecentPeriods,
+  shiftPeriods,
+} from "@/lib/domain/period";
 import { REPORT_GRANULARITIES, type ReportGranularity } from "@/lib/domain/enums";
 import { REPORT_GRANULARITY_LABELS } from "@/lib/domain/labels";
+import { WeeklyBudgetSection } from "./WeeklyBudgetSection";
+import { BudgetByCategorySection } from "./BudgetByCategorySection";
 
 // timeZone: "UTC" su entrambi — vedi il commento sull'omonimo dateFormatter
 // in DashboardClient.tsx: i confini di periodo sono mezzanotte UTC, senza
@@ -19,6 +26,23 @@ const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", cu
 function formatAmount(value: unknown) {
   return currencyFormatter.format(Number(value));
 }
+
+// Quale report è aperto. Stato puramente di interfaccia (nessuna
+// persistenza, niente che attraversi il confine client/server), quindi qui e
+// non in lib/domain/enums.ts.
+//
+// Un selettore invece di impilare tutti i report nella stessa pagina: così
+// gira SOLO la query del report che stai guardando. Non è un dettaglio di
+// stile — la sola "Panoramica" fa ~25 query (il grafico andamento ne fa 2 per
+// ciascuno dei 12 periodi), e su Azure SQL piano free pagarle tutte ad ogni
+// apertura per poi guardarne una era il vero costo di questa pagina.
+const REPORT_VIEWS = [
+  { id: "OVERVIEW", label: "Panoramica" },
+  { id: "WEEKLY", label: "Settimane" },
+  { id: "BUDGET_BY_CATEGORY", label: "Budget/categorie" },
+] as const;
+
+type ReportView = (typeof REPORT_VIEWS)[number]["id"];
 
 type CategoryExpenseItem = {
   id: string;
@@ -189,128 +213,10 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
   );
 }
 
-type WeekBudgetItem = {
-  no: number;
-  start: Date | string;
-  end: Date | string;
-  spent: number;
-  baseBudget: number;
-  adjustedBudget: number;
-  isFinal: boolean;
-};
-
-// Stessa barra ambra/corallo di BudgetBar (DashboardClient.tsx), qui riusata
-// sia per il totale del mese sia per ciascuna settimana.
-function ProgressBar({ percentUsed }: { percentUsed: number }) {
-  const overBudget = percentUsed > 100;
-  return (
-    <div className="h-1.5 w-full rounded-full bg-ink-200 dark:bg-ink-800">
-      <div
-        className={`h-1.5 rounded-full ${overBudget ? "bg-coral-600 dark:bg-coral-400" : "bg-amber-500 dark:bg-amber-400"}`}
-        style={{ width: `${Math.min(100, Math.max(0, percentUsed))}%` }}
-      />
-    </div>
-  );
-}
-
-// "Quanto posso ancora spendere prima del prossimo stipendio?" (PRD sezione
-// 1) letta settimana per settimana, invece che solo a fine periodo — sopra,
-// il confronto sull'intero mese per contesto; sotto, le 4 settimane fisse
-// del periodo mostrato (non settimane solari — vedi weeklyBudget in
-// server/routers/report.ts).
-//
-// Budget "adattivo": una settimana già conclusa che sfora o risparmia
-// rispetto al proprio budget sposta la differenza sulle settimane ancora da
-// venire (lib/domain/budget.ts: computeAdaptiveWeeklyBudget) — la barra di
-// ogni settimana confronta "spent" con "adjustedBudget", non con una
-// semplice divisione fissa per 4. Quando i due differiscono, il budget
-// base resta visibile tra parentesi per capire da dove arriva la modifica.
-function WeeklyBudgetSection({
-  weeks,
-  monthlyBudget,
-  budgetSpent,
-  isCurrentPeriod,
-}: {
-  weeks: WeekBudgetItem[];
-  monthlyBudget: unknown;
-  budgetSpent: unknown;
-  isCurrentPeriod: boolean;
-}) {
-  if (monthlyBudget == null) {
-    return (
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Budget settimanale</h2>
-        <p className="text-sm text-ink-500 dark:text-ink-400">
-          Imposta un Budget mensile (pagina &quot;Budget&quot;) per vedere l&apos;andamento settimanale.
-        </p>
-      </div>
-    );
-  }
-
-  const monthlyBudgetNumber = Number(monthlyBudget);
-  const budgetSpentNumber = Number(budgetSpent);
-  const monthPercentUsed = monthlyBudgetNumber > 0 ? (budgetSpentNumber / monthlyBudgetNumber) * 100 : 0;
-  const now = new Date();
-
-  return (
-    <div className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Budget settimanale</h2>
-
-      <Card className="flex flex-col gap-1.5 p-3">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-ink-800 dark:text-ink-200">Intero periodo</span>
-          <span className="text-xs text-ink-500 dark:text-ink-400">
-            {formatAmount(budgetSpentNumber)} / {formatAmount(monthlyBudgetNumber)}
-          </span>
-        </div>
-        <ProgressBar percentUsed={monthPercentUsed} />
-      </Card>
-
-      <div className="flex flex-col gap-2">
-        {weeks.map((week) => {
-          const percentUsed = week.adjustedBudget > 0 ? (week.spent / week.adjustedBudget) * 100 : 0;
-          const start = new Date(week.start);
-          const end = new Date(week.end);
-          const isCurrentWeek = isCurrentPeriod && now >= start && now <= end;
-          const isAdjusted = Math.abs(week.adjustedBudget - week.baseBudget) >= 0.01;
-          return (
-            <Card
-              key={week.no}
-              className={`flex flex-col gap-1.5 p-3 ${isCurrentWeek ? "ring-1 ring-teal-500 dark:ring-teal-400" : ""}`}
-            >
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-ink-800 dark:text-ink-200">
-                  Settimana {week.no}
-                  {isCurrentWeek && (
-                    <span className="ml-1.5 text-xs font-normal text-teal-600 dark:text-teal-400">· in corso</span>
-                  )}
-                  {week.isFinal && !isCurrentWeek && (
-                    <span className="ml-1.5 text-xs font-normal text-ink-400 dark:text-ink-500">· conclusa</span>
-                  )}
-                </span>
-                <span className="text-xs text-ink-500 dark:text-ink-400">
-                  {dateFormatter.format(start)} → {dateFormatter.format(end)}
-                </span>
-              </div>
-              <ProgressBar percentUsed={percentUsed} />
-              <span className="text-xs text-ink-500 dark:text-ink-400">
-                {formatAmount(week.spent)} / {formatAmount(week.adjustedBudget)}
-                {isAdjusted && ` (base ${formatAmount(week.baseBudget)})`}
-              </span>
-            </Card>
-          );
-        })}
-        <p className="text-xs text-ink-400 dark:text-ink-500">
-          Una settimana conclusa che sfora o risparmia sposta la differenza sulle settimane successive, abbassando o
-          alzando il loro budget.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // Mensile/Trimestrale/Annuale — un semplice controllo segmentato, 3 opzioni
-// fisse non giustificano un <Select>.
+// fisse non giustificano un <Select>. Mostrato solo per la Panoramica: gli
+// altri report ragionano sempre e solo sul singolo periodo mostrato (un
+// budget settimanale "trimestrale" non avrebbe senso).
 function GranularitySelector({
   value,
   onChange,
@@ -334,7 +240,25 @@ function GranularitySelector({
   );
 }
 
+function ReportViewSelector({ value, onChange }: { value: ReportView; onChange: (value: ReportView) => void }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-2">
+      {REPORT_VIEWS.map((view) => (
+        <Button
+          key={view.id}
+          size="sm"
+          variant={view.id === value ? "default" : "outline"}
+          onClick={() => onChange(view.id)}
+        >
+          {view.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export function ReportClient() {
+  const [view, setView] = useState<ReportView>("OVERVIEW");
   const [granularity, setGranularity] = useState<ReportGranularity>("MONTHLY");
   // Stessa convenzione di navigazione periodo di DashboardClient.tsx:
   // undefined => periodo corrente, altrimenti una data concreta al suo
@@ -342,47 +266,40 @@ export function ReportClient() {
   // più recente della finestra) e ricalcola solo la dimensione della
   // finestra, invece di saltare sempre a "oggi".
   const [referenceDate, setReferenceDate] = useState<Date | undefined>(undefined);
-  const { data, isLoading } = trpc.report.summary.useQuery({ referenceDate, granularity });
-  // Sempre sul SOLO periodo più recente della finestra (data.period), mai
-  // sulla finestra intera — un budget settimanale "trimestrale" non avrebbe
-  // senso. Stesso referenceDate del report sopra: le stesse frecce
-  // prev/next spostano entrambi insieme.
-  const { data: weeklyBudgetData } = trpc.report.weeklyBudget.useQuery({ referenceDate });
+  const [onlyRecurring, setOnlyRecurring] = useState(true);
 
-  if (isLoading || !data) {
-    return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
-  }
-
-  const {
-    period,
-    windowStart,
-    windowEnd,
-    isCurrentPeriod,
-    totalExpense,
-    totalRecurringExpense,
-    totalIncome,
-    categoryBreakdown,
-    trend,
-  } = data;
+  // Testata (periodo mostrato, estremi della finestra, "siamo su oggi?")
+  // calcolata qui e non letta dalla risposta di un report: getFinancialPeriod
+  // & co. sono funzioni pure su UTC (lib/domain/period.ts), identiche sul
+  // client e sul server. Così le frecce e le etichette funzionano subito,
+  // senza dipendere da quale report è aperto né aspettare la sua query.
+  const anchorPeriod = getCurrentFinancialPeriod(referenceDate);
+  const isCurrentPeriod = anchorPeriod.key === getCurrentFinancialPeriod().key;
   const periodsInWindow = GRANULARITY_PERIOD_COUNT[granularity];
-  // shiftPeriods vuole Date reali — ricostruito esplicitamente invece di
-  // fidarsi del tipo inferito da tRPC, stesso motivo per cui altrove
-  // (DashboardClient.tsx) si fa sempre new Date(period.start) prima di usarlo.
-  const anchorPeriod: FinancialPeriod = {
-    start: new Date(period.start),
-    end: new Date(period.end),
-    key: period.key,
-  };
+  // Solo la Panoramica aggrega più periodi: per gli altri report la finestra
+  // è sempre il periodo mostrato, qualunque sia la granularità scelta prima.
+  const windowPeriods = getRecentPeriods(view === "OVERVIEW" ? periodsInWindow : 1, anchorPeriod.start);
+  const windowStart = windowPeriods[windowPeriods.length - 1].start;
+  const windowEnd = anchorPeriod.end;
 
-  // shiftPeriods(anchorPeriod, ±periodsInWindow) salta l'intera finestra in
-  // un colpo (es. un trimestre intero, non un periodo alla volta) —
-  // anchorPeriod è sempre il periodo più recente della finestra corrente,
-  // vedi il commento in server/routers/report.ts.
+  const summary = trpc.report.summary.useQuery(
+    { referenceDate, granularity },
+    { enabled: view === "OVERVIEW" }
+  );
+  const weeklyBudget = trpc.report.weeklyBudget.useQuery({ referenceDate }, { enabled: view === "WEEKLY" });
+  const budgetByCategory = trpc.report.budgetByCategory.useQuery(
+    { referenceDate, onlyRecurring },
+    { enabled: view === "BUDGET_BY_CATEGORY" }
+  );
+
+  // shiftPeriods(anchorPeriod, ±N) salta l'intera finestra in un colpo (es. un
+  // trimestre intero, non un periodo alla volta) — anchorPeriod è sempre il
+  // periodo più recente della finestra corrente.
   function goToPreviousWindow() {
-    setReferenceDate(shiftPeriods(anchorPeriod, -periodsInWindow).start);
+    setReferenceDate(shiftPeriods(anchorPeriod, -(view === "OVERVIEW" ? periodsInWindow : 1)).start);
   }
   function goToNextWindow() {
-    setReferenceDate(shiftPeriods(anchorPeriod, periodsInWindow).start);
+    setReferenceDate(shiftPeriods(anchorPeriod, view === "OVERVIEW" ? periodsInWindow : 1).start);
   }
   function goToCurrentWindow() {
     setReferenceDate(undefined);
@@ -392,13 +309,14 @@ export function ReportClient() {
     <div className="flex w-full max-w-xl flex-col gap-8">
       <div className="flex flex-col gap-3 text-center">
         <h1 className="text-lg font-semibold text-ink-950 dark:text-ink-50">Report</h1>
-        <GranularitySelector value={granularity} onChange={setGranularity} />
+        <ReportViewSelector value={view} onChange={setView} />
+        {view === "OVERVIEW" && <GranularitySelector value={granularity} onChange={setGranularity} />}
         <div className="flex items-center justify-center gap-2">
           <Button variant="outline" size="icon" className="shrink-0" onClick={goToPreviousWindow} aria-label="Periodo precedente">
             <ChevronLeft className="size-4" />
           </Button>
           <p className="text-sm text-ink-600 dark:text-ink-300">
-            {dateFormatter.format(new Date(windowStart))} → {dateFormatter.format(new Date(windowEnd))}
+            {dateFormatter.format(windowStart)} → {dateFormatter.format(windowEnd)}
           </p>
           <Button variant="outline" size="icon" className="shrink-0" onClick={goToNextWindow} aria-label="Periodo successivo">
             <ChevronRight className="size-4" />
@@ -411,56 +329,86 @@ export function ReportClient() {
         )}
       </div>
 
-      {weeklyBudgetData && (
-        <WeeklyBudgetSection
-          weeks={weeklyBudgetData.weeks}
-          monthlyBudget={weeklyBudgetData.monthlyBudget}
-          budgetSpent={weeklyBudgetData.budgetSpent}
-          isCurrentPeriod={weeklyBudgetData.isCurrentPeriod}
-        />
-      )}
-
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-center gap-8">
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-ink-500 dark:text-ink-400">Entrate</span>
-            <span className="text-lg font-semibold text-ink-500 dark:text-ink-400">{formatAmount(totalIncome)}</span>
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-xs text-ink-500 dark:text-ink-400">Spese</span>
-            <span className="text-lg font-semibold text-coral-600 dark:text-coral-400">{formatAmount(totalExpense)}</span>
-          </div>
-        </div>
-
-        {/* "di cui ricorrenti", non un terzo totale affiancato: è un
-            sottoinsieme di Spese (le spese col flag "Spesa ricorrente"), non
-            una grandezza indipendente — vedi totalRecurringExpense in
-            server/routers/report.ts. */}
-        <p className="text-center text-xs text-ink-500 dark:text-ink-400">
-          di cui spese ricorrenti: <span className="font-medium">{formatAmount(totalRecurringExpense)}</span>
-          {Number(totalExpense) > 0 && ` (${((Number(totalRecurringExpense) / Number(totalExpense)) * 100).toFixed(0)}%)`}
-        </p>
-
-        {categoryBreakdown.length === 0 ? (
-          <p className="text-center text-sm text-ink-500 dark:text-ink-400">Nessuna spesa in questo periodo.</p>
-        ) : (
+      {view === "OVERVIEW" &&
+        (summary.data ? (
           <>
-            <CategoryPieChart items={categoryBreakdown} />
-            <div className="flex flex-col gap-2">
-              {categoryBreakdown.map((item, index) => (
-                <CategoryRow key={item.categoryId} item={item} color={CHART_COLORS[index % CHART_COLORS.length]} />
-              ))}
+            <div className="flex flex-col gap-4">
+              <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Dove vanno i miei soldi</h2>
+              <div className="flex items-center justify-center gap-8">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-xs text-ink-500 dark:text-ink-400">Entrate</span>
+                  <span className="text-lg font-semibold text-ink-500 dark:text-ink-400">
+                    {formatAmount(summary.data.totalIncome)}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-xs text-ink-500 dark:text-ink-400">Spese</span>
+                  <span className="text-lg font-semibold text-coral-600 dark:text-coral-400">
+                    {formatAmount(summary.data.totalExpense)}
+                  </span>
+                </div>
+              </div>
+
+              {/* "di cui ricorrenti", non un terzo totale affiancato: è un
+                  sottoinsieme di Spese (le spese col flag "Spesa ricorrente"),
+                  non una grandezza indipendente — vedi totalRecurringExpense
+                  in server/routers/report.ts. */}
+              <p className="text-center text-xs text-ink-500 dark:text-ink-400">
+                di cui spese ricorrenti:{" "}
+                <span className="font-medium">{formatAmount(summary.data.totalRecurringExpense)}</span>
+                {Number(summary.data.totalExpense) > 0 &&
+                  ` (${((Number(summary.data.totalRecurringExpense) / Number(summary.data.totalExpense)) * 100).toFixed(0)}%)`}
+              </p>
+
+              {summary.data.categoryBreakdown.length === 0 ? (
+                <p className="text-center text-sm text-ink-500 dark:text-ink-400">Nessuna spesa in questo periodo.</p>
+              ) : (
+                <>
+                  <CategoryPieChart items={summary.data.categoryBreakdown} />
+                  <div className="flex flex-col gap-2">
+                    {summary.data.categoryBreakdown.map((item, index) => (
+                      <CategoryRow key={item.categoryId} item={item} color={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">
+                Andamento (ultimi {summary.data.trend.length} periodi)
+              </h2>
+              <Card className="p-4">
+                <TrendChart trend={summary.data.trend} />
+              </Card>
             </div>
           </>
-        )}
-      </div>
+        ) : (
+          <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>
+        ))}
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-ink-500 dark:text-ink-400">Andamento (ultimi {trend.length} periodi)</h2>
-        <Card className="p-4">
-          <TrendChart trend={trend} />
-        </Card>
-      </div>
+      {view === "WEEKLY" &&
+        (weeklyBudget.data ? (
+          <WeeklyBudgetSection
+            weeks={weeklyBudget.data.weeks}
+            monthlyBudget={weeklyBudget.data.monthlyBudget}
+            budgetSpent={weeklyBudget.data.budgetSpent}
+            isCurrentPeriod={weeklyBudget.data.isCurrentPeriod}
+          />
+        ) : (
+          <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>
+        ))}
+
+      {view === "BUDGET_BY_CATEGORY" &&
+        (budgetByCategory.data ? (
+          <BudgetByCategorySection
+            data={budgetByCategory.data}
+            onlyRecurring={onlyRecurring}
+            onOnlyRecurringChange={setOnlyRecurring}
+          />
+        ) : (
+          <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>
+        ))}
     </div>
   );
 }
