@@ -59,7 +59,10 @@ export const reportRouter = router({
         // id/date/description in più rispetto al minimo che servirebbe al
         // solo totale: per rispondere a "cosa è stato classificato così"
         // cliccando una categoria — vedi categoryBreakdown[].expenses sotto.
-        select: { id: true, date: true, description: true, categoryId: true, amount: true },
+        // isRecurringCost: per il totale "Spese ricorrenti" sotto — l'etichetta
+        // manuale, non recurringTemplateId (vedi il commento sul campo in
+        // schema.prisma).
+        select: { id: true, date: true, description: true, categoryId: true, amount: true, isRecurringCost: true },
       }),
       ctx.prisma.income.aggregate({
         where: { userId: ctx.userId, date: { gte: windowStart, lte: windowEnd } },
@@ -80,6 +83,13 @@ export const reportRouter = router({
     // (server/accountBalances.ts): volumi piccoli, niente da verificare sul
     // comportamento groupBy dell'adapter mssql.
     const totalExpense = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
+    // "Quanto della spesa di questa finestra è roba che torna comunque ogni
+    // mese?" — un sottoinsieme di totalExpense (stesse spese, stessa finestra,
+    // stesso filtro status), non un totale a parte: nessun conto su rate o
+    // Budget qui, solo la somma delle spese marcate ricorrenti.
+    const totalRecurringExpense = expenses
+      .filter((e) => e.isRecurringCost)
+      .reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
     const totalsByTopCategory = new Map<string, Prisma.Decimal>();
     // Le spese vere e proprie dietro ogni fetta — una sottocategoria conta
     // nel totale del suo genitore (topLevelOf), ma qui teniamo il nome della
@@ -151,6 +161,7 @@ export const reportRouter = router({
       granularity,
       isCurrentPeriod,
       totalExpense,
+      totalRecurringExpense,
       totalIncome,
       categoryBreakdown,
       trend,

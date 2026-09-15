@@ -210,6 +210,24 @@ model Expense {
   // budgetSpreadPeriods — l'importo è comunque uscito davvero dal conto.
   excludeFromBudget Boolean @default(false)
 
+  // "Spesa ricorrente" (non nel PRD originale): marca a mano una spesa come
+  // parte del costo che si ripete ogni mese (affitto/mutuo, bollette,
+  // abbonamenti, spesa alimentare...) invece che occasionale — serve a
+  // rispondere a "quanto del mese è già impegnato da cose che tornano
+  // comunque?" (vedi totalRecurringExpense in server/routers/report.ts).
+  //
+  // Deliberatamente DISTINTO da recurringTemplateId sopra: quello dice "questa
+  // riga è stata generata da un RecurringTemplate" (un fatto tecnico, vero solo
+  // per le poche ricorrenze automatizzate), questo dice "questo costo è di
+  // natura ricorrente" (un giudizio dell'utente, applicabile a qualunque spesa
+  // inserita a mano). Default true — anche per le spese già registrate prima
+  // di questo campo, che il default riempie in blocco: la scelta dell'utente
+  // è di partire da "tutto ricorrente" e togliere la spunta sulle eccezioni.
+  //
+  // Non tocca in nessun modo Budget/Disponibile/Report per categoria: è solo
+  // un'etichetta con un proprio totale.
+  isRecurringCost Boolean @default(true)
+
   // Every Expense always has exactly one PaymentPlan (PRD section 4). The
   // field below is optional only because Prisma requires the non-owning side
   // of a 1:1 relation to be nullable in the schema — the app layer must

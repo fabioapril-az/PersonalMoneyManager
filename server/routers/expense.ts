@@ -31,6 +31,12 @@ const expenseFieldsSchema = z.object({
   // budgetSpreadPeriods (non ha senso spalmare qualcosa che non conta
   // affatto) — compatibile con le rate.
   excludeFromBudget: z.boolean().optional(),
+  // "Spesa ricorrente" (schema.prisma: Expense.isRecurringCost) — etichetta
+  // manuale, distinta da recurringTemplateId (vedi il commento sul campo).
+  // Default true anche qui, non solo nello schema: una spesa salvata da un
+  // client che non manda affatto il campo resta comunque marcata ricorrente,
+  // coerente con la casella pre-spuntata nei dialog.
+  isRecurringCost: z.boolean().default(true),
 });
 
 function refineMutualExclusivity<
@@ -187,6 +193,7 @@ type ExpenseInput = {
   installments?: number;
   budgetSpreadPeriods?: number;
   excludeFromBudget?: boolean;
+  isRecurringCost?: boolean;
 };
 
 type AccountForExpense = { type: string; statementDay: number | null; name: string };
@@ -234,6 +241,10 @@ async function createExpenseChain(
       // (server/computeBudgetForPeriod.ts) li legge.
       budgetSpreadPeriods: input.budgetSpreadPeriods ?? undefined,
       excludeFromBudget: input.excludeFromBudget ?? undefined,
+      // Scritto sempre esplicitamente (non "?? undefined"): togliere la spunta
+      // deve poter salvare false, e il default dello schema è true — lasciarlo
+      // a undefined riporterebbe la spesa a "ricorrente" ad ogni modifica.
+      isRecurringCost: input.isRecurringCost ?? true,
     },
   });
 

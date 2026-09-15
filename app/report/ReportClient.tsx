@@ -353,7 +353,17 @@ export function ReportClient() {
     return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
   }
 
-  const { period, windowStart, windowEnd, isCurrentPeriod, totalExpense, totalIncome, categoryBreakdown, trend } = data;
+  const {
+    period,
+    windowStart,
+    windowEnd,
+    isCurrentPeriod,
+    totalExpense,
+    totalRecurringExpense,
+    totalIncome,
+    categoryBreakdown,
+    trend,
+  } = data;
   const periodsInWindow = GRANULARITY_PERIOD_COUNT[granularity];
   // shiftPeriods vuole Date reali — ricostruito esplicitamente invece di
   // fidarsi del tipo inferito da tRPC, stesso motivo per cui altrove
@@ -421,6 +431,15 @@ export function ReportClient() {
             <span className="text-lg font-semibold text-coral-600 dark:text-coral-400">{formatAmount(totalExpense)}</span>
           </div>
         </div>
+
+        {/* "di cui ricorrenti", non un terzo totale affiancato: è un
+            sottoinsieme di Spese (le spese col flag "Spesa ricorrente"), non
+            una grandezza indipendente — vedi totalRecurringExpense in
+            server/routers/report.ts. */}
+        <p className="text-center text-xs text-ink-500 dark:text-ink-400">
+          di cui spese ricorrenti: <span className="font-medium">{formatAmount(totalRecurringExpense)}</span>
+          {Number(totalExpense) > 0 && ` (${((Number(totalRecurringExpense) / Number(totalExpense)) * 100).toFixed(0)}%)`}
+        </p>
 
         {categoryBreakdown.length === 0 ? (
           <p className="text-center text-sm text-ink-500 dark:text-ink-400">Nessuna spesa in questo periodo.</p>

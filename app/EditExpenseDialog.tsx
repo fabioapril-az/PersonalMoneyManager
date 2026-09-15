@@ -43,6 +43,10 @@ export type EditableExpense = {
   budgetSpreadPeriods?: number | null;
   // "Escludi dal Budget" — vedi il commento sul campo in schema.prisma.
   excludeFromBudget?: boolean;
+  // "Spesa ricorrente" — vedi il commento sul campo in schema.prisma.
+  // Opzionale + default true sotto: alcune viste passano una forma ridotta
+  // della spesa, e "ricorrente" è comunque il valore di partenza.
+  isRecurringCost?: boolean;
 };
 
 export function EditExpenseDialog({
@@ -83,6 +87,7 @@ export function EditExpenseDialog({
     String(Math.max(expense?.budgetSpreadPeriods ?? 2, 2))
   );
   const [isExcludedFromBudget, setIsExcludedFromBudget] = useState(() => expense?.excludeFromBudget ?? false);
+  const [isRecurringCost, setIsRecurringCost] = useState(() => expense?.isRecurringCost ?? true);
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   const categoryOptions = buildCategoryOptions(categories ?? []);
@@ -148,6 +153,7 @@ export function EditExpenseDialog({
       installments: isInstallments ? parsedInstallments : undefined,
       budgetSpreadPeriods: isBudgetSpread ? parsedSpread : undefined,
       excludeFromBudget: isExcludedFromBudget || undefined,
+      isRecurringCost,
     });
   }
 
@@ -209,6 +215,22 @@ export function EditExpenseDialog({
             <Label htmlFor="edit-expense-notes">Note (opzionale)</Label>
             <Input id="edit-expense-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="edit-expense-recurring-cost-toggle"
+              checked={isRecurringCost}
+              onCheckedChange={(checked) => setIsRecurringCost(checked === true)}
+            />
+            <Label htmlFor="edit-expense-recurring-cost-toggle" className="font-normal">
+              Spesa ricorrente
+            </Label>
+          </div>
+          {!isRecurringCost && (
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Spesa occasionale: resta contata in tutto come sempre, ma non entra nel totale &quot;Spese
+              ricorrenti&quot; del Report.
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <Checkbox
               id="edit-expense-installments-toggle"
