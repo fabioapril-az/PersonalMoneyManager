@@ -1,5 +1,6 @@
 import type {
   AccountType,
+  PaymentPlanType,
   CashMovementType,
   ReportGranularity,
   RecurringFrequency,
@@ -16,6 +17,18 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   PREPAID_CARD: "Carta ricaricabile",
   PAYPAL: "PayPal",
   CASH: "Contanti",
+  OTHER: "Altro",
+};
+
+// Come è stata pagata una spesa (PaymentPlan.type) — usate solo negli export
+// CSV: nell'interfaccia il tipo di piano non si mostra mai da solo, si legge
+// dal conto e dalle rate.
+export const PAYMENT_PLAN_TYPE_LABELS: Record<PaymentPlanType, string> = {
+  IMMEDIATE: "Immediato",
+  CREDIT_CARD: "Carta di credito",
+  INSTALLMENTS: "A rate",
+  PAYPAL: "PayPal",
+  BANK_TRANSFER: "Bonifico",
   OTHER: "Altro",
 };
 
