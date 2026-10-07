@@ -432,7 +432,15 @@ export function MovimentiClient() {
       date: i.date,
       label: i.source,
       icon: "💶",
-      sublabel: i.cashMovements[0]?.account.name ?? null,
+      sublabel: [
+        i.cashMovements[0]?.account.name ?? null,
+        // Spiega perché questa entrata alza il Budget mensile del periodo
+        // invece di essere solo liquidità in più — vedi il commento su
+        // Income.isRefund in schema.prisma.
+        i.isRefund ? "💰 Rimborso: alza il Budget" : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       amount: Number(i.amount),
       raw: i,
     })),

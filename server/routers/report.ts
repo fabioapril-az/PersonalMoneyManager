@@ -3,7 +3,7 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { reportGranularitySchema } from "@/lib/domain/enums";
 import { GRANULARITY_PERIOD_COUNT, getCurrentFinancialPeriod, getRecentPeriods } from "@/lib/domain/period";
 import { splitPeriodIntoWeeks, computeAdaptiveWeeklyBudget } from "@/lib/domain/budget";
-import { computeBudgetForPeriod } from "../computeBudgetForPeriod";
+import { computeBudgetForPeriod, computeEffectiveMonthlyBudget } from "../computeBudgetForPeriod";
 import { protectedProcedure, router } from "../trpc";
 
 const summaryInputSchema = z
@@ -189,13 +189,18 @@ export const reportRouter = router({
       const period = getCurrentFinancialPeriod(input?.referenceDate);
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
 
-      const [user, { budgetSpent, budgetLines }] = await Promise.all([
+      const [user, { budgetSpent, budgetLines, refundIncome }] = await Promise.all([
         ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
         // Stessa identica regola ibrida + "spalma sul Budget"/"escludi dal
         // Budget" di dashboard.ts (server/computeBudgetForPeriod.ts) — qui
         // bucketizzata per settimana invece che sommata in un unico totale.
         computeBudgetForPeriod(ctx.prisma, ctx.userId, period),
       ]);
+
+      // Tetto effettivo (Budget mensile + rimborsi del periodo, vedi
+      // computeEffectiveMonthlyBudget) — stesso tetto che usa la Dashboard,
+      // qui diviso in 4 invece che confrontato in un unico totale.
+      const monthlyBudget = computeEffectiveMonthlyBudget(user.monthlyBudget, refundIncome);
 
       const rawWeeks = splitPeriodIntoWeeks(period).map((week) => {
         const spent = budgetLines
@@ -205,11 +210,11 @@ export const reportRouter = router({
       });
 
       const weeks =
-        user.monthlyBudget != null
-          ? computeAdaptiveWeeklyBudget(rawWeeks, Number(user.monthlyBudget), new Date())
+        monthlyBudget != null
+          ? computeAdaptiveWeeklyBudget(rawWeeks, Number(monthlyBudget), new Date())
           : rawWeeks.map((week) => ({ ...week, baseBudget: 0, adjustedBudget: 0, isFinal: false }));
 
-      return { period, isCurrentPeriod, monthlyBudget: user.monthlyBudget, budgetSpent, weeks };
+      return { period, isCurrentPeriod, monthlyBudget, budgetSpent, weeks };
     }),
 
   // "Cosa mi mangia il budget, e in quali categorie?" — la suddivisione per
@@ -241,7 +246,7 @@ export const reportRouter = router({
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
       const onlyRecurring = input?.onlyRecurring ?? true;
 
-      const [user, categories, { budgetSpent, budgetLines }] = await Promise.all([
+      const [user, categories, { budgetSpent, budgetLines, refundIncome }] = await Promise.all([
         ctx.prisma.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { monthlyBudget: true } }),
         // Solo per risalire alla categoria di primo livello: una
         // sottocategoria conta nel totale del genitore, esattamente come nella
@@ -278,7 +283,10 @@ export const reportRouter = router({
         linesByTopCategory.set(top.id, [...(linesByTopCategory.get(top.id) ?? []), line]);
       }
 
-      const monthlyBudget = user.monthlyBudget;
+      // Tetto effettivo (Budget mensile + rimborsi del periodo) — stesso
+      // identico tetto della Dashboard e del Budget settimanale, vedi
+      // computeEffectiveMonthlyBudget.
+      const monthlyBudget = computeEffectiveMonthlyBudget(user.monthlyBudget, refundIncome);
       const categoryBreakdown = Array.from(totalsByTopCategory.entries())
         .map(([categoryId, amount]) => {
           const category = categoryById.get(categoryId)!;

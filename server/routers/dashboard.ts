@@ -3,7 +3,7 @@ import { Prisma } from "@/app/generated/prisma/client";
 import { getCurrentFinancialPeriod } from "@/lib/domain/period";
 import { listAccountsWithBalance } from "../accountBalances";
 import { generateDueRecurringExpenses } from "../generateDueRecurringExpenses";
-import { computeBudgetForPeriod } from "../computeBudgetForPeriod";
+import { computeBudgetForPeriod, computeEffectiveMonthlyBudget } from "../computeBudgetForPeriod";
 import { protectedProcedure, router } from "../trpc";
 
 export const dashboardRouter = router({
@@ -24,7 +24,7 @@ export const dashboardRouter = router({
       const period = getCurrentFinancialPeriod(input?.referenceDate);
       const isCurrentPeriod = period.key === getCurrentFinancialPeriod().key;
 
-      const [incomes, cashMovements, accounts, user, { expenses, budgetSpent, budgetLines }] = await Promise.all([
+      const [incomes, cashMovements, accounts, user, { expenses, budgetSpent, budgetLines, refundIncome }] = await Promise.all([
         ctx.prisma.income.findMany({
           where: { userId: ctx.userId, date: { gte: period.start, lte: period.end } },
           // accountId non è un campo di Income (solo il suo CashMovement lo
@@ -96,8 +96,13 @@ export const dashboardRouter = router({
         available,
         // Tetto di spesa complessivo scelto dall'utente, confrontato con
         // budgetSpent — non totalExpense, vedi sopra (app/budget). Null se non
-        // impostato.
-        monthlyBudget: user.monthlyBudget,
+        // impostato. Alzato dei rimborsi (Income.isRefund) datati in questo
+        // periodo — vedi computeEffectiveMonthlyBudget. monthlyBudgetBase e
+        // refundIncome tornano a parte solo per poter mostrare "di cui +X€ da
+        // rimborsi" nella UI, senza dover fare di nuovo la sottrazione lì.
+        monthlyBudget: computeEffectiveMonthlyBudget(user.monthlyBudget, refundIncome),
+        monthlyBudgetBase: user.monthlyBudget,
+        refundIncome,
         budgetSpent,
         budgetLines,
         accounts,

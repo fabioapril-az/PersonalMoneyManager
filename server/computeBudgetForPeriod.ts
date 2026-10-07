@@ -12,10 +12,14 @@ import type { Context } from "./context";
  *
  * Non include le query su Income/CashMovement/Account — quelle restano in
  * dashboard.ts, che le usa anche per Entrate/Disponibile/Movimenti di cassa,
- * cose che il Budget settimanale non tocca.
+ * cose che il Budget settimanale non tocca. Eccezione: i soli rimborsi
+ * (Income.isRefund), che alzano il TETTO del Budget del periodo in cui
+ * cadono (vedi refundIncome sotto) — serve qui perché sia Dashboard che
+ * Report leggano lo stesso tetto effettivo, non due calcoli che potrebbero
+ * disallinearsi.
  */
 export async function computeBudgetForPeriod(prisma: Context["prisma"], userId: string, period: FinancialPeriod) {
-  const [expenses, schedulesDueInPeriod, pastSpreadExpenses] = await Promise.all([
+  const [expenses, schedulesDueInPeriod, pastSpreadExpenses, refundAgg] = await Promise.all([
     // status "not PLANNED": una ricorrenza generata ma non ancora confermata
     // (PRD sezione 9) non deve contare nel Budget finché l'utente non la
     // conferma — vedi expense.listPlanned e "Ricorrenze da confermare".
@@ -98,7 +102,18 @@ export async function computeBudgetForPeriod(prisma: Context["prisma"], userId: 
         paymentPlan: { select: { type: true, account: { select: { name: true, excludeFromTotals: true } } } },
       },
     }),
+    // Rimborsi datati in QUESTO periodo (mai quelli di periodi diversi: un
+    // rimborso alza il tetto del mese in cui arriva, non quello della spesa
+    // che compensa — più semplice da seguire per chi registra i movimenti,
+    // e coerente con come il resto del Budget legge sempre la data del
+    // movimento, non quella di una spesa collegata).
+    prisma.income.aggregate({
+      where: { userId, date: { gte: period.start, lte: period.end }, isRefund: true },
+      _sum: { amount: true },
+    }),
   ]);
+
+  const refundIncome = refundAgg._sum.amount ?? new Prisma.Decimal(0);
 
   const budgetExpenses = selectBudgetExpenses(expenses);
 
@@ -187,5 +202,18 @@ export async function computeBudgetForPeriod(prisma: Context["prisma"], userId: 
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
-  return { expenses, budgetSpent, budgetLines };
+  return { expenses, budgetSpent, budgetLines, refundIncome };
+}
+
+/**
+ * Il tetto di spesa EFFETTIVO del periodo: il Budget mensile scelto
+ * dall'utente, alzato dei rimborsi datati in questo periodo (vedi
+ * refundIncome sopra). Null se nessun Budget è impostato — un rimborso non
+ * crea un tetto dal nulla, alza solo quello che già esiste.
+ */
+export function computeEffectiveMonthlyBudget(
+  monthlyBudget: Prisma.Decimal | null,
+  refundIncome: Prisma.Decimal
+): Prisma.Decimal | null {
+  return monthlyBudget == null ? null : monthlyBudget.plus(refundIncome);
 }

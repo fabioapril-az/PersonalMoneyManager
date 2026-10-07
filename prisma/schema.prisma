@@ -249,6 +249,15 @@ model Income {
   date      DateTime
   amount    Decimal  @db.Decimal(12, 2)
   source    String
+  // "Rimborso" (non nel PRD originale): un'entrata che compensa una spesa già
+  // fatta (es. l'azienda rimborsa una trasferta). Default false — a differenza
+  // di Expense.isRecurringCost, qui l'eccezione è l'entrata normale (stipendio,
+  // bonus...), che non deve toccare il Budget. Letta solo da
+  // computeBudgetForPeriod per aumentare il tetto di spesa del periodo in cui
+  // cade: un rimborso non riduce "quanto hai speso", alza "quanto puoi
+  // spendere" — altrimenti un rimborso arrivato PRIMA della spesa che
+  // compensa farebbe sembrare il Budget già sforato per un attimo.
+  isRefund  Boolean  @default(false)
   notes     String?
   createdAt DateTime @default(now())
 

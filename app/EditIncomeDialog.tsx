@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toDateInputValue } from "@/lib/domain/dateInput";
 
 export type EditableIncome = {
@@ -16,6 +17,7 @@ export type EditableIncome = {
   source: string;
   date: string | Date;
   notes: string | null;
+  isRefund?: boolean;
   cashMovements: { accountId: string }[];
 };
 
@@ -40,6 +42,7 @@ export function EditIncomeDialog({
   const [accountId, setAccountId] = useState(() => income?.cashMovements[0]?.accountId ?? "");
   const [date, setDate] = useState(() => (income ? toDateInputValue(income.date) : ""));
   const [notes, setNotes] = useState(() => income?.notes ?? "");
+  const [isRefund, setIsRefund] = useState(() => income?.isRefund ?? false);
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
@@ -89,6 +92,7 @@ export function EditIncomeDialog({
       accountId,
       date: new Date(date),
       notes: notes || undefined,
+      isRefund,
     });
   }
 
@@ -130,6 +134,21 @@ export function EditIncomeDialog({
             <Label htmlFor="edit-income-notes">Note (opzionale)</Label>
             <Input id="edit-income-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="group/field flex items-center gap-2">
+            <Checkbox
+              id="edit-income-refund-toggle"
+              checked={isRefund}
+              onCheckedChange={(checked) => setIsRefund(checked === true)}
+            />
+            <Label htmlFor="edit-income-refund-toggle" className="font-normal">
+              Rimborso
+            </Label>
+          </div>
+          {isRefund && (
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Alza il Budget mensile di questo importo per il periodo in cui cade questa data.
+            </p>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={updateIncome.isPending}>
               {updateIncome.isPending ? "Salvataggio…" : "Salva"}

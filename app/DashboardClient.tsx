@@ -215,8 +215,17 @@ export function DashboardClient() {
     return <p className="text-sm text-ink-500 dark:text-ink-400">Caricamento…</p>;
   }
 
-  const { period, isCurrentPeriod, totalIncome, totalExpense, available, monthlyBudget, budgetSpent, budgetLines } =
-    data;
+  const {
+    period,
+    isCurrentPeriod,
+    totalIncome,
+    totalExpense,
+    available,
+    monthlyBudget,
+    refundIncome,
+    budgetSpent,
+    budgetLines,
+  } = data;
 
   // shiftPeriods vuole Date reali — ricostruito esplicitamente invece di
   // fidarsi del tipo inferito da tRPC (stessa cautela di app/report/ReportClient.tsx).
@@ -314,6 +323,13 @@ export function DashboardClient() {
                 </span>
               </div>
               <BudgetBar percentUsed={budgetPercentUsed} />
+              {Number(refundIncome) > 0 && (
+                // Spiega perché questo tetto è più alto di quello impostato in
+                // "Budget" — vedi computeEffectiveMonthlyBudget.
+                <p className="text-xs text-ink-500 dark:text-ink-400">
+                  di cui +{formatAmount(refundIncome)} da rimborsi di questo periodo
+                </p>
+              )}
             </Card>
           )}
         </div>

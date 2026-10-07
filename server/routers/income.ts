@@ -10,6 +10,7 @@ const createIncomeSchema = z.object({
   source: z.string().trim().min(1, "Indica la provenienza (es. Stipendio).").max(60),
   accountId: z.string().min(1, "Seleziona un conto."),
   notes: z.string().trim().max(500).optional(),
+  isRefund: z.boolean().default(false),
 });
 
 const updateIncomeSchema = createIncomeSchema.extend({ id: z.string() });
@@ -40,6 +41,7 @@ export const incomeRouter = router({
           amount: input.amount,
           source: input.source,
           notes: input.notes,
+          isRefund: input.isRefund,
         },
       });
 
@@ -73,7 +75,13 @@ export const incomeRouter = router({
     return ctx.prisma.$transaction(async (tx) => {
       const updated = await tx.income.update({
         where: { id: input.id },
-        data: { date: input.date, amount: input.amount, source: input.source, notes: input.notes },
+        data: {
+          date: input.date,
+          amount: input.amount,
+          source: input.source,
+          notes: input.notes,
+          isRefund: input.isRefund,
+        },
       });
 
       await tx.cashMovement.updateMany({

@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { todayInputValue } from "@/lib/domain/dateInput";
 
 export function NewIncomeDialog() {
@@ -27,6 +28,10 @@ export function NewIncomeDialog() {
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState(todayInputValue());
   const [notes, setNotes] = useState("");
+  // "Rimborso" (schema.prisma: Income.isRefund) — non pre-spuntata, a
+  // differenza di Expense.isRecurringCost: qui l'eccezione è l'entrata che
+  // alza il Budget, non quella normale (stipendio, bonus...).
+  const [isRefund, setIsRefund] = useState(false);
 
   const activeAccounts = accounts?.filter((a) => !a.archived) ?? [];
   // Base UI's <Select> non deduce l'etichetta dal <SelectItem> selezionato
@@ -49,6 +54,7 @@ export function NewIncomeDialog() {
     setAccountId("");
     setDate(todayInputValue());
     setNotes("");
+    setIsRefund(false);
     setOpen(false);
   }
 
@@ -70,6 +76,7 @@ export function NewIncomeDialog() {
       accountId,
       date: new Date(date),
       notes: notes || undefined,
+      isRefund,
     });
   }
 
@@ -130,6 +137,18 @@ export function NewIncomeDialog() {
             <Label htmlFor="income-notes">Note (opzionale)</Label>
             <Input id="income-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="group/field flex items-center gap-2">
+            <Checkbox id="income-refund-toggle" checked={isRefund} onCheckedChange={(checked) => setIsRefund(checked === true)} />
+            <Label htmlFor="income-refund-toggle" className="font-normal">
+              Rimborso
+            </Label>
+          </div>
+          {isRefund && (
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Alza il Budget mensile di questo importo per il periodo in cui cade questa data, invece di contare come
+              liquidità in più senza toccare il tetto di spesa.
+            </p>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={createIncome.isPending}>
               {createIncome.isPending ? "Registrazione…" : "Registra entrata"}
