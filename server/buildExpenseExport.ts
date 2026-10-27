@@ -1,15 +1,16 @@
 import { CSV_BOM, formatCsvAmount, formatCsvBoolean, formatCsvDate, toCsv } from "@/lib/domain/csv";
-import { PAYMENT_PLAN_TYPE_LABELS } from "@/lib/domain/labels";
-import type { PaymentPlanType } from "@/lib/domain/enums";
+import { PAYMENT_PLAN_TYPE_LABELS, CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domain/labels";
+import type { PaymentPlanType, CashMovementType } from "@/lib/domain/enums";
 import type { FinancialPeriod } from "@/lib/domain/period";
 import { computeBudgetForPeriod } from "./computeBudgetForPeriod";
 import type { Context } from "./context";
 
 /**
- * I tre export CSV della pagina "Esporta" (app/esporta). Tutti sul singolo
- * periodo 27->26 mostrato, mai su tutto lo storico.
+ * I quattro export CSV della pagina "Esporta" (app/esporta). Tutti sul
+ * singolo periodo 27->26 mostrato, mai su tutto lo storico.
  *
- *   - "spese":      ogni spesa del periodo, nessun filtro;
+ *   - "spese":      ogni spesa del periodo, nessun filtro — per data della
+ *                   DECISIONE di spesa (Expense.date, Rule 4: mai spostata);
  *   - "ricorrenti": le sole spese marcate "Spesa ricorrente"
  *                   (Expense.isRecurringCost) — un sottoinsieme di "spese",
  *                   stesse colonne, così i due file sono confrontabili riga
@@ -23,18 +24,28 @@ import type { Context } from "./context";
  *                   l'importo della spesa. Le colonne "Tipo riga" e "Importo
  *                   totale spesa" servono a non far sembrare un errore un
  *                   importo che non corrisponde alla spesa ricordata.
+ *   - "cassa":      i Movimenti di cassa del periodo (PRD Rule 5) — cosa è
+ *                   successo DAVVERO sui conti, per data di CashMovement, non
+ *                   di Expense/Income. Una rata o un addebito carta pagati in
+ *                   questo periodo compaiono qui anche se la spesa che li ha
+ *                   generati è stata decisa in un periodo precedente — è
+ *                   l'unico dei quattro export a poter contenere righe che
+ *                   "spese"/"ricorrenti" non hanno, per lo stesso motivo per
+ *                   cui "Movimenti di cassa" (app/movimenti) è una sezione
+ *                   separata da "Spese e entrate".
  *
  * Il formato (";", virgola decimale, BOM) e il perché stanno in
  * lib/domain/csv.ts.
  */
 
-export const EXPORT_DATASETS = ["spese", "ricorrenti", "budget"] as const;
+export const EXPORT_DATASETS = ["spese", "ricorrenti", "budget", "cassa"] as const;
 export type ExportDataset = (typeof EXPORT_DATASETS)[number];
 
 export const EXPORT_DATASET_LABELS: Record<ExportDataset, string> = {
   spese: "Tutte le spese",
   ricorrenti: "Solo spese ricorrenti",
   budget: "Spese nel Budget",
+  cassa: "Movimenti di cassa",
 };
 
 const EXPENSE_HEADER = [
@@ -66,6 +77,8 @@ const BUDGET_HEADER = [
   "Ricorrente",
 ];
 
+const CASH_MOVEMENT_HEADER = ["Data", "Descrizione", "Conto", "Tipo", "Importo", "Rata"];
+
 export async function buildExpenseExport(
   prisma: Context["prisma"],
   userId: string,
@@ -92,7 +105,9 @@ export async function buildExpenseExport(
   const content =
     dataset === "budget"
       ? await buildBudgetCsv(prisma, userId, period, categoryColumns)
-      : await buildExpensesCsv(prisma, userId, period, dataset === "ricorrenti", categoryColumns);
+      : dataset === "cassa"
+        ? await buildCashMovementsCsv(prisma, userId, period)
+        : await buildExpensesCsv(prisma, userId, period, dataset === "ricorrenti", categoryColumns);
 
   return { filename: `${dataset}_${period.key}.csv`, content: CSV_BOM + content };
 }
@@ -187,4 +202,39 @@ async function buildBudgetCsv(
   });
 
   return toCsv(BUDGET_HEADER, rows);
+}
+
+async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, period: FinancialPeriod) {
+  // Filtrato per data di CashMovement, non di Expense/Income — stessa query
+  // di dashboard.summary (server/routers/dashboard.ts), così questo export
+  // mostra esattamente le righe della sezione "Movimenti di cassa".
+  const movements = await prisma.cashMovement.findMany({
+    where: { date: { gte: period.start, lte: period.end }, account: { userId } },
+    include: {
+      account: { select: { name: true } },
+      paymentSchedule: {
+        select: { installmentNo: true, paymentPlan: { select: { installmentsCount: true } } },
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const rows = movements.map((m) => {
+    // "OTHER" non ha etichetta di proposito (CASH_MOVEMENT_TYPE_LABELS): è il
+    // caso "normale" (spesa a pagamento immediato, stesso giorno) — stessa
+    // convenzione della sezione "Movimenti di cassa" in app/movimenti.
+    const typeLabel = CASH_MOVEMENT_TYPE_LABELS[m.type as CashMovementType] ?? "";
+    return [
+      formatCsvDate(m.date),
+      m.description ?? "",
+      m.account.name,
+      typeLabel,
+      formatCsvAmount(Number(m.amount)),
+      m.paymentSchedule?.installmentNo != null && m.paymentSchedule.paymentPlan.installmentsCount != null
+        ? `${m.paymentSchedule.installmentNo}/${m.paymentSchedule.paymentPlan.installmentsCount}`
+        : "",
+    ];
+  });
+
+  return toCsv(CASH_MOVEMENT_HEADER, rows);
 }

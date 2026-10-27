@@ -10,7 +10,7 @@ import { getCurrentFinancialPeriod, shiftPeriods } from "@/lib/domain/period";
 // sull'omonimo formatter in DashboardClient.tsx.
 const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-// I tre file, nell'ordine in cui hanno senso da leggere: il più filtrato
+// I quattro file, nell'ordine in cui hanno senso da leggere: il più filtrato
 // prima. dataset combacia col segmento di rotta di app/api/export/[dataset].
 const EXPORTS = [
   {
@@ -28,6 +28,12 @@ const EXPORTS = [
     dataset: "spese",
     label: "Tutte le spese",
     description: "Ogni spesa del periodo, senza filtri — ricorrenti e occasionali, dentro e fuori dal Budget.",
+  },
+  {
+    dataset: "cassa",
+    label: "Movimenti di cassa",
+    description:
+      "Cosa è successo davvero sui conti in questo periodo, per data del movimento: può contenere rate o addebiti carta decisi in un periodo precedente, che gli altri tre file non hanno.",
   },
 ] as const;
 
