@@ -77,7 +77,7 @@ const BUDGET_HEADER = [
   "Ricorrente",
 ];
 
-const CASH_MOVEMENT_HEADER = ["Data", "Descrizione", "Conto", "Tipo", "Importo", "Rata"];
+const CASH_MOVEMENT_HEADER = ["Data", "Data spesa", "Descrizione", "Conto", "Tipo", "Importo", "Rata"];
 
 export async function buildExpenseExport(
   prisma: Context["prisma"],
@@ -213,8 +213,15 @@ async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, 
     include: {
       account: { select: { name: true } },
       paymentSchedule: {
-        select: { installmentNo: true, paymentPlan: { select: { installmentsCount: true } } },
+        select: {
+          installmentNo: true,
+          paymentPlan: { select: { installmentsCount: true, expense: { select: { date: true } } } },
+        },
       },
+      // Solo per "Data spesa" sotto — un'entrata non ha mai una data diversa
+      // dal suo CashMovement (create insieme, vedi income.ts), ma la teniamo
+      // comunque per coerenza di colonna con le righe generate da una spesa.
+      income: { select: { date: true } },
     },
     orderBy: { date: "desc" },
   });
@@ -224,8 +231,15 @@ async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, 
     // caso "normale" (spesa a pagamento immediato, stesso giorno) — stessa
     // convenzione della sezione "Movimenti di cassa" in app/movimenti.
     const typeLabel = CASH_MOVEMENT_TYPE_LABELS[m.type as CashMovementType] ?? "";
+    // Data dell'ACQUISTO (Expense.date, mai spostata — Rule 4), non della
+    // scadenza: per una rata o un addebito carta è diversa dalla colonna
+    // "Data" sopra (il vero movimento), e serve a risalire a quando è stata
+    // presa la decisione di spesa. Vuota per un trasferimento: lì le due
+    // date coincidono sempre (un trasferimento è sempre immediato).
+    const expenseDate = m.paymentSchedule?.paymentPlan.expense.date ?? m.income?.date ?? null;
     return [
       formatCsvDate(m.date),
+      expenseDate ? formatCsvDate(expenseDate) : "",
       m.description ?? "",
       m.account.name,
       typeLabel,
