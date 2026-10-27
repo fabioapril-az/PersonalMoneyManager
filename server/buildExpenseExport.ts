@@ -3,6 +3,7 @@ import { PAYMENT_PLAN_TYPE_LABELS, CASH_MOVEMENT_TYPE_LABELS } from "@/lib/domai
 import type { PaymentPlanType, CashMovementType } from "@/lib/domain/enums";
 import type { FinancialPeriod } from "@/lib/domain/period";
 import { computeBudgetForPeriod } from "./computeBudgetForPeriod";
+import { settleOverdueCardCharges } from "./settleOverdueCardCharges";
 import type { Context } from "./context";
 
 /**
@@ -205,6 +206,15 @@ async function buildBudgetCsv(
 }
 
 async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, period: FinancialPeriod) {
+  // Senza questo, un addebito carta già scaduto ma non ancora "toccato" da
+  // nessun'altra pagina (Dashboard/Movimenti, che lo saldano da sole ad ogni
+  // apertura — vedi il commento su settleOverdueCardCharges) non avrebbe
+  // ancora un CashMovement, e questo export lo ometterebbe anche se la banca
+  // l'ha già addebitato per davvero: un export usato per il riscontro col
+  // conto corrente deve essere sempre aggiornato, non dipendere dall'ultima
+  // volta che è stata aperta un'altra pagina dell'app.
+  await settleOverdueCardCharges(prisma, userId);
+
   // Filtrato per data di CashMovement, non di Expense/Income — stessa query
   // di dashboard.summary (server/routers/dashboard.ts), così questo export
   // mostra esattamente le righe della sezione "Movimenti di cassa".
