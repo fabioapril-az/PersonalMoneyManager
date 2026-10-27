@@ -30,16 +30,23 @@ import type { Context } from "./context";
  *                   di Expense/Income. Una rata o un addebito carta pagati in
  *                   questo periodo compaiono qui anche se la spesa che li ha
  *                   generati è stata decisa in un periodo precedente — è
- *                   l'unico dei quattro export a poter contenere righe che
+ *                   l'unico dei quattro sopra a poter contenere righe che
  *                   "spese"/"ricorrenti" non hanno, per lo stesso motivo per
  *                   cui "Movimenti di cassa" (app/movimenti) è una sezione
  *                   separata da "Spese e entrate".
+ *   - "tutto":      "spese" e "cassa" uniti in un solo file, una colonna
+ *                   "Fonte" a distinguere le righe — per chi preferisce un
+ *                   solo export con tutto dentro piuttosto che incrociare più
+ *                   file a mano. Le colonne che non si applicano a una riga
+ *                   (es. "Ricorrente" per un movimento di cassa) restano
+ *                   vuote: è un insieme di due viste diverse appiattito in
+ *                   una tabella, non una quinta vista con una sua logica.
  *
  * Il formato (";", virgola decimale, BOM) e il perché stanno in
  * lib/domain/csv.ts.
  */
 
-export const EXPORT_DATASETS = ["spese", "ricorrenti", "budget", "cassa"] as const;
+export const EXPORT_DATASETS = ["spese", "ricorrenti", "budget", "cassa", "tutto"] as const;
 export type ExportDataset = (typeof EXPORT_DATASETS)[number];
 
 export const EXPORT_DATASET_LABELS: Record<ExportDataset, string> = {
@@ -47,6 +54,7 @@ export const EXPORT_DATASET_LABELS: Record<ExportDataset, string> = {
   ricorrenti: "Solo spese ricorrenti",
   budget: "Spese nel Budget",
   cassa: "Movimenti di cassa",
+  tutto: "Tutto insieme",
 };
 
 const EXPENSE_HEADER = [
@@ -80,6 +88,22 @@ const BUDGET_HEADER = [
 
 const CASH_MOVEMENT_HEADER = ["Data", "Descrizione", "Conto", "Tipo", "Importo", "Rata"];
 
+// Fonte prima di Data: con molte righe è la prima cosa da guardare per
+// capire se si sta leggendo una decisione di spesa o un movimento reale.
+const ALL_HEADER = [
+  "Fonte",
+  "Data",
+  "Descrizione",
+  "Categoria",
+  "Sottocategoria",
+  "Conto",
+  "Importo",
+  "Tipo",
+  "Rata",
+  "Ricorrente",
+  "Note",
+];
+
 export async function buildExpenseExport(
   prisma: Context["prisma"],
   userId: string,
@@ -103,24 +127,32 @@ export async function buildExpenseExport(
     return parent ? [parent.name, category.name] : [category.name, ""];
   }
 
-  const content =
-    dataset === "budget"
-      ? await buildBudgetCsv(prisma, userId, period, categoryColumns)
-      : dataset === "cassa"
-        ? await buildCashMovementsCsv(prisma, userId, period)
-        : await buildExpensesCsv(prisma, userId, period, dataset === "ricorrenti", categoryColumns);
+  let content: string;
+  switch (dataset) {
+    case "budget":
+      content = await buildBudgetCsv(prisma, userId, period, categoryColumns);
+      break;
+    case "cassa":
+      content = toCsv(CASH_MOVEMENT_HEADER, cashMovementRows(await fetchCashMovements(prisma, userId, period)));
+      break;
+    case "tutto":
+      content = await buildAllCsv(prisma, userId, period, categoryColumns);
+      break;
+    default:
+      content = toCsv(
+        EXPENSE_HEADER,
+        expenseRows(await fetchExpenses(prisma, userId, period, dataset === "ricorrenti"), categoryColumns)
+      );
+  }
 
   return { filename: `${dataset}_${period.key}.csv`, content: CSV_BOM + content };
 }
 
-async function buildExpensesCsv(
-  prisma: Context["prisma"],
-  userId: string,
-  period: FinancialPeriod,
-  onlyRecurring: boolean,
-  categoryColumns: (categoryId: string) => [string, string]
-) {
-  const expenses = await prisma.expense.findMany({
+// Separata dalla formattazione CSV sotto (expenseRows) così "tutto" può
+// riusare esattamente la stessa query di "spese"/"ricorrenti" invece di
+// duplicarla con un rischio di disallineamento.
+async function fetchExpenses(prisma: Context["prisma"], userId: string, period: FinancialPeriod, onlyRecurring: boolean) {
+  return prisma.expense.findMany({
     // status "not PLANNED": una ricorrenza generata ma non ancora confermata
     // (PRD sezione 9) è un promemoria, non una spesa — non deve finire in un
     // export che poi si usa per fare i conti. Stesso filtro di report/dashboard.
@@ -144,8 +176,13 @@ async function buildExpensesCsv(
     },
     orderBy: { date: "desc" },
   });
+}
 
-  const rows = expenses.map((e) => {
+function expenseRows(
+  expenses: Awaited<ReturnType<typeof fetchExpenses>>,
+  categoryColumns: (categoryId: string) => [string, string]
+) {
+  return expenses.map((e) => {
     const [category, subcategory] = categoryColumns(e.categoryId);
     return [
       formatCsvDate(e.date),
@@ -165,8 +202,6 @@ async function buildExpensesCsv(
       e.notes ?? "",
     ];
   });
-
-  return toCsv(EXPENSE_HEADER, rows);
 }
 
 async function buildBudgetCsv(
@@ -205,7 +240,10 @@ async function buildBudgetCsv(
   return toCsv(BUDGET_HEADER, rows);
 }
 
-async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, period: FinancialPeriod) {
+// Separata dalla formattazione CSV sotto (cashMovementRows) per lo stesso
+// motivo di fetchExpenses sopra: "tutto" riusa questa query invece di
+// duplicarla.
+async function fetchCashMovements(prisma: Context["prisma"], userId: string, period: FinancialPeriod) {
   // Senza questo, un addebito carta già scaduto ma non ancora "toccato" da
   // nessun'altra pagina (Dashboard/Movimenti, che lo saldano da sole ad ogni
   // apertura — vedi il commento su settleOverdueCardCharges) non avrebbe
@@ -218,37 +256,46 @@ async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, 
   // Filtrato per data di CashMovement, non di Expense/Income — stessa query
   // di dashboard.summary (server/routers/dashboard.ts), così questo export
   // mostra esattamente le righe della sezione "Movimenti di cassa".
-  const movements = await prisma.cashMovement.findMany({
+  return prisma.cashMovement.findMany({
     where: { date: { gte: period.start, lte: period.end }, account: { userId } },
     include: {
       account: { select: { name: true } },
       paymentSchedule: {
         select: {
           installmentNo: true,
-          paymentPlan: { select: { installmentsCount: true, expense: { select: { date: true } } } },
+          paymentPlan: {
+            select: {
+              installmentsCount: true,
+              expense: { select: { date: true, categoryId: true, isRecurringCost: true } },
+            },
+          },
         },
       },
     },
     orderBy: { date: "desc" },
   });
+}
 
-  const rows = movements.map((m) => {
+// Una sola colonna "Data", col valore giusto da riscontrare col conto
+// corrente secondo il tipo di riga — non sempre lo stesso campo:
+//   - CARD_CHARGE: un singolo addebito in banca raggruppa più acquisti fatti
+//     in giorni diversi del mese precedente, quindi qui ha senso la data
+//     dell'acquisto (Expense.date), non quella dell'addebito;
+//   - tutto il resto (rata, entrata, trasferimento...): il vero movimento
+//     (m.date) è già la data esatta su cui la banca muove i soldi — per una
+//     rata è la sua scadenza, non quella dell'acquisto originale del piano.
+function cashMovementDate(m: Awaited<ReturnType<typeof fetchCashMovements>>[number]) {
+  return m.type === "CARD_CHARGE" ? m.paymentSchedule?.paymentPlan.expense.date ?? m.date : m.date;
+}
+
+function cashMovementRows(movements: Awaited<ReturnType<typeof fetchCashMovements>>) {
+  return movements.map((m) => {
     // "OTHER" non ha etichetta di proposito (CASH_MOVEMENT_TYPE_LABELS): è il
     // caso "normale" (spesa a pagamento immediato, stesso giorno) — stessa
     // convenzione della sezione "Movimenti di cassa" in app/movimenti.
     const typeLabel = CASH_MOVEMENT_TYPE_LABELS[m.type as CashMovementType] ?? "";
-    // Una sola colonna "Data", col valore giusto da riscontrare col conto
-    // corrente secondo il tipo di riga — non sempre lo stesso campo:
-    //   - CARD_CHARGE: un singolo addebito in banca raggruppa più acquisti
-    //     fatti in giorni diversi del mese precedente, quindi qui ha senso
-    //     la data dell'acquisto (Expense.date), non quella dell'addebito;
-    //   - tutto il resto (rata, entrata, trasferimento...): il vero
-    //     movimento (m.date) è già la data esatta su cui la banca muove i
-    //     soldi — per una rata è la sua scadenza, non quella dell'acquisto
-    //     originale del piano.
-    const date = m.type === "CARD_CHARGE" ? m.paymentSchedule?.paymentPlan.expense.date ?? m.date : m.date;
     return [
-      formatCsvDate(date),
+      formatCsvDate(cashMovementDate(m)),
       m.description ?? "",
       m.account.name,
       typeLabel,
@@ -258,6 +305,69 @@ async function buildCashMovementsCsv(prisma: Context["prisma"], userId: string, 
         : "",
     ];
   });
+}
 
-  return toCsv(CASH_MOVEMENT_HEADER, rows);
+// "Fonte" unica di verità per "tutto" sotto: Spesa = decisione (Expense.date),
+// Movimento di cassa = soldi mossi davvero (CashMovement, stessa convenzione
+// di data di cashMovementDate sopra) — niente di nuovo, solo le righe di
+// "spese" e "cassa" affiancate con un discriminatore e riordinate insieme.
+async function buildAllCsv(
+  prisma: Context["prisma"],
+  userId: string,
+  period: FinancialPeriod,
+  categoryColumns: (categoryId: string) => [string, string]
+) {
+  const [expenses, movements] = await Promise.all([
+    fetchExpenses(prisma, userId, period, false),
+    fetchCashMovements(prisma, userId, period),
+  ]);
+
+  const expenseEntries = expenses.map((e) => {
+    const [category, subcategory] = categoryColumns(e.categoryId);
+    return {
+      date: e.date,
+      cells: [
+        "Spesa",
+        formatCsvDate(e.date),
+        e.description,
+        category,
+        subcategory,
+        e.paymentPlan?.account.name ?? "",
+        formatCsvAmount(Number(e.amount)),
+        e.paymentPlan ? (PAYMENT_PLAN_TYPE_LABELS[e.paymentPlan.type as PaymentPlanType] ?? e.paymentPlan.type) : "",
+        (e.paymentPlan?.installmentsCount ?? 1) > 1 ? String(e.paymentPlan?.installmentsCount) : "",
+        formatCsvBoolean(e.isRecurringCost),
+        e.notes ?? "",
+      ],
+    };
+  });
+
+  const movementEntries = movements.map((m) => {
+    const expenseForCategory = m.paymentSchedule?.paymentPlan.expense;
+    const [category, subcategory] = expenseForCategory ? categoryColumns(expenseForCategory.categoryId) : ["", ""];
+    const typeLabel = CASH_MOVEMENT_TYPE_LABELS[m.type as CashMovementType] ?? "";
+    const date = cashMovementDate(m);
+    return {
+      date,
+      cells: [
+        "Movimento di cassa",
+        formatCsvDate(date),
+        m.description ?? "",
+        category,
+        subcategory,
+        m.account.name,
+        formatCsvAmount(Number(m.amount)),
+        typeLabel,
+        m.paymentSchedule?.installmentNo != null && m.paymentSchedule.paymentPlan.installmentsCount != null
+          ? `${m.paymentSchedule.installmentNo}/${m.paymentSchedule.paymentPlan.installmentsCount}`
+          : "",
+        expenseForCategory ? formatCsvBoolean(expenseForCategory.isRecurringCost) : "",
+        "",
+      ],
+    };
+  });
+
+  const rows = [...expenseEntries, ...movementEntries].sort((a, b) => b.date.getTime() - a.date.getTime()).map((e) => e.cells);
+
+  return toCsv(ALL_HEADER, rows);
 }
