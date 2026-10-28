@@ -482,42 +482,55 @@ export function MovimentiClient() {
           {movements.length === 0 && (
             <p className="text-sm text-ink-500 dark:text-ink-400">Nessun movimento in questo periodo.</p>
           )}
-          {groupByCalendarDay(movements, (m) => m.date).map((group) => (
-            <div key={group.key} className="flex flex-col gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
-                {group.label ?? dateFormatter.format(group.date)}
-              </p>
-              {group.items.map((movement) => (
-                <button
-                  key={movement.id}
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() =>
-                    movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
-                  }
-                >
-                  <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <IconChip icon={movement.icon} tintKey={movement.label} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-ink-800 dark:text-ink-200">{movement.label}</p>
-                        {movement.sublabel && (
-                          <p className="truncate text-xs text-ink-500 dark:text-ink-400">{movement.sublabel}</p>
-                        )}
+          {groupByCalendarDay(movements, (m) => m.date).map((group) => {
+            // Solo le spese, non il netto con le entrate: "quanto ho speso
+            // quel giorno" non deve sembrare più basso solo perché lo stesso
+            // giorno è arrivato anche uno stipendio.
+            const daySpent = group.items
+              .filter((m) => m.kind === "expense")
+              .reduce((sum, m) => sum + -m.amount, 0);
+            return (
+              <div key={group.key} className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
+                    {group.label ?? dateFormatter.format(group.date)}
+                  </p>
+                  {daySpent > 0 && (
+                    <p className="text-xs font-medium text-ink-400 dark:text-ink-500">speso {formatAmount(daySpent)}</p>
+                  )}
+                </div>
+                {group.items.map((movement) => (
+                  <button
+                    key={movement.id}
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() =>
+                      movement.kind === "expense" ? setEditingExpense(movement.raw) : setEditingIncome(movement.raw)
+                    }
+                  >
+                    <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <IconChip icon={movement.icon} tintKey={movement.label} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-ink-800 dark:text-ink-200">{movement.label}</p>
+                          {movement.sublabel && (
+                            <p className="truncate text-xs text-ink-500 dark:text-ink-400">{movement.sublabel}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <span
-                      className={`shrink-0 text-sm font-medium ${
-                        movement.amount < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
-                      }`}
-                    >
-                      {formatAmount(movement.amount)}
-                    </span>
-                  </Card>
-                </button>
-              ))}
-            </div>
-          ))}
+                      <span
+                        className={`shrink-0 text-sm font-medium ${
+                          movement.amount < 0 ? "text-coral-600 dark:text-coral-400" : "text-teal-600 dark:text-teal-400"
+                        }`}
+                      >
+                        {formatAmount(movement.amount)}
+                      </span>
+                    </Card>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
           <p className="text-xs text-ink-400 dark:text-ink-500">
             Le decisioni di spesa/entrata di questo periodo — clicca per modificare o eliminare.
           </p>

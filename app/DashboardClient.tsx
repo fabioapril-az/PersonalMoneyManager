@@ -132,54 +132,64 @@ function BudgetBreakdownSection({
   return (
     <CollapsibleSection title={`Spese nel Budget (${lines.length})`} defaultOpen>
       <div className="flex flex-col gap-3">
-        {groupByCalendarDay(lines, (line) => line.date).map((group) => (
-          <div key={group.key} className="flex flex-col gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
-              {group.label ?? dateFormatter.format(group.date)}
-            </p>
-            {group.items.map((line) => {
-              // Una riga "spalmata sul Budget" riusa lo stesso campo
-              // installment (per la dicitura "rata N/count") di una rata
-              // vera, ma non lo è: qui l'importo intero è già uscito dal
-              // conto, non c'è nessuna scadenza futura — vedi spreadTotalAmount.
-              const isSpread = line.spreadTotalAmount != null;
-              const meta = [
-                line.accountName,
-                line.installment && !isSpread ? "scadenza" : null,
-                line.isRecurring ? "🔁 Ricorrente" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <button
-                  key={line.id}
-                  type="button"
-                  className="w-full text-left"
-                  onClick={() => onEditExpense(line.expenseId)}
-                >
-                  <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <IconChip icon={line.categoryIcon} tintKey={line.description} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-ink-800 dark:text-ink-200">
-                          {line.description}
-                          {line.installment &&
-                            ` · rata ${line.installment.no}/${line.installment.count}${
-                              isSpread ? ` (spesa ${formatAmount(line.spreadTotalAmount)})` : ""
-                            }`}
-                        </p>
-                        {meta && <p className="truncate text-xs text-ink-500 dark:text-ink-400">{meta}</p>}
+        {groupByCalendarDay(lines, (line) => line.date).map((group) => {
+          // Somma delle righe del giorno, non delle spese intere — una rata
+          // o una quota spalmata contano qui per il loro importo di
+          // competenza, stessa logica della singola riga sotto (Rule 1: non
+          // doppiare mai la spesa intera e la sua rata).
+          const dayTotal = group.items.reduce((sum, line) => sum + Number(line.amount), 0);
+          return (
+            <div key={group.key} className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
+                  {group.label ?? dateFormatter.format(group.date)}
+                </p>
+                <p className="text-xs font-medium text-ink-400 dark:text-ink-500">{formatAmount(-dayTotal)}</p>
+              </div>
+              {group.items.map((line) => {
+                // Una riga "spalmata sul Budget" riusa lo stesso campo
+                // installment (per la dicitura "rata N/count") di una rata
+                // vera, ma non lo è: qui l'importo intero è già uscito dal
+                // conto, non c'è nessuna scadenza futura — vedi spreadTotalAmount.
+                const isSpread = line.spreadTotalAmount != null;
+                const meta = [
+                  line.accountName,
+                  line.installment && !isSpread ? "scadenza" : null,
+                  line.isRecurring ? "🔁 Ricorrente" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <button
+                    key={line.id}
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => onEditExpense(line.expenseId)}
+                  >
+                    <Card className="flex flex-row items-center justify-between gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <IconChip icon={line.categoryIcon} tintKey={line.description} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-ink-800 dark:text-ink-200">
+                            {line.description}
+                            {line.installment &&
+                              ` · rata ${line.installment.no}/${line.installment.count}${
+                                isSpread ? ` (spesa ${formatAmount(line.spreadTotalAmount)})` : ""
+                              }`}
+                          </p>
+                          {meta && <p className="truncate text-xs text-ink-500 dark:text-ink-400">{meta}</p>}
+                        </div>
                       </div>
-                    </div>
-                    <span className="shrink-0 text-sm font-medium text-coral-600 dark:text-coral-400">
-                      {formatAmount(-Number(line.amount))}
-                    </span>
-                  </Card>
-                </button>
-              );
-            })}
-          </div>
-        ))}
+                      <span className="shrink-0 text-sm font-medium text-coral-600 dark:text-coral-400">
+                        {formatAmount(-Number(line.amount))}
+                      </span>
+                    </Card>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
         <p className="text-xs text-ink-400 dark:text-ink-500">
           Ogni riga che compone lo &quot;Speso&quot; del Budget qui sopra — pagamenti immediati e carta alla data
           d&apos;acquisto, rate alla loro scadenza, spese spalmate una quota per mese. Clicca per modificare la
